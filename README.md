@@ -22,7 +22,7 @@ Lần đầu, file sẽ tự cài dependency nếu cần. Các lần sau web kh�
 4. Chuyển sang **Carol**, mở cùng đề xuất và ký chữ ký thứ ba.
 5. Khi trạng thái đạt 3/3, nhấn **Thực thi khoản chi** và xác nhận lần cuối.
 
-Nút đổi Alice/Bob/Carol là phòng kiểm thử ba vai trò trên cùng máy. Khi deploy contract và điền Contract ID Testnet, nguồn dữ liệu dùng chung phải là storage/event của Soroban RPC; mỗi owner kết nối địa chỉ Freighter của mình. Bản demo không lưu hoặc giả lập secret key.
+Nút đổi Alice/Bob/Carol là phòng kiểm thử ba vai trò trên cùng máy. Khi deploy contract và điền Contract ID Testnet, frontend tự chuyển sang **TESTNET LIVE**: đọc config/proposal/approval/balance qua Soroban RPC, đối chiếu địa chỉ Freighter với owner và gửi transaction `create_proposal`, `approve`, `execute`, `deposit` thật. Vì storage contract là nguồn dữ liệu chung, ba máy sẽ nhìn thấy cùng một đề xuất sau khi bấm đồng bộ. Bản demo không lưu hoặc giả lập secret key.
 
 Điều kiện duy nhất của máy chạy: **Node.js 22 trở lên**. Tải tại <https://nodejs.org/> nếu Windows báo chưa có Node.js.
 
@@ -107,12 +107,20 @@ stellar contract deploy --wasm pdu_multisig_treasury.wasm --source alice --netwo
 
 Lưu Contract ID và SAC ID vào file `.env.local` dựa trên `.env.example`, rồi chạy lại frontend. Không commit secret key hoặc seed phrase. Freighter giữ khóa trên thiết bị người dùng.
 
+```env
+NEXT_PUBLIC_TREASURY_CONTRACT_ID=C...CONTRACT_ID_DA_DEPLOY
+NEXT_PUBLIC_XLM_SAC_ID=C...NATIVE_XLM_SAC
+```
+
+Nếu `NEXT_PUBLIC_TREASURY_CONTRACT_ID` để trống, website chủ động chạy ở **TESTNET DEMO** để có thể chấm giao diện mà không cần ví. Nếu Contract ID hợp lệ, nút đổi vai trò bị khóa; vai trò được lấy từ đúng địa chỉ Freighter đang kết nối.
+
 ## Cấu trúc
 
 ```text
 contracts/pdu_multisig_treasury/   Rust contract + tests
 packages/pdu-multisig-treasury-client/  Types, error map, XLM helpers
 app/                               Frontend React/TypeScript
+app/stellar-treasury.ts            Soroban RPC + Freighter live adapter
 docs/SOROBAN_STUDIO.md             Hướng dẫn Studio
 pdu_multisig_treasury.wasm         WASM đã build
 CHAY_WEB.bat                       Chạy một chạm
