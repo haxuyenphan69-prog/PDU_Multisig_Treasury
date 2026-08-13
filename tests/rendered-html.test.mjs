@@ -15,7 +15,8 @@ test("server renders the PDU treasury shell", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /PDU Treasury/);
-  assert.match(html, /Quỹ đa chữ ký/);
+  assert.match(html, /Ba người cùng quyết/);
+  assert.match(html, /Kho quỹ đồng thuận 3\/3/);
   assert.match(html, /treasury-app/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });

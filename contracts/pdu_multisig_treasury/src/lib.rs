@@ -133,7 +133,9 @@ pub struct PduMultisigTreasury;
 impl PduMultisigTreasury {
     pub fn __constructor(env: Env, owners: Vec<Address>, threshold: u32, token: Address) {
         validate_owners(&owners).unwrap_or_else(|error| panic_error(&env, error));
-        if threshold == 0 || threshold > owners.len() {
+        // This treasury uses unanimous governance: every configured owner must
+        // approve before funds can leave the contract.
+        if threshold == 0 || threshold != owners.len() {
             panic_error(&env, Error::InvalidThreshold);
         }
 

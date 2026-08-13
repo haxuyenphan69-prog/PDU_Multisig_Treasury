@@ -34,7 +34,7 @@ fn fixture() -> Fixture {
     let token = token::TokenClient::new(&env, &token_address);
     let token_admin = token::StellarAssetClient::new(&env, &token_address);
     let owners = vec![&env, alice.clone(), bob.clone(), carol.clone()];
-    let contract_id = env.register(PduMultisigTreasury, (owners, 2_u32, token_address.clone()));
+    let contract_id = env.register(PduMultisigTreasury, (owners, 3_u32, token_address.clone()));
     let client = PduMultisigTreasuryClient::new(&env, &contract_id);
     Fixture {
         env,
@@ -52,7 +52,7 @@ fn fixture() -> Fixture {
 fn constructor_sets_immutable_configuration() {
     let f = fixture();
     let config = f.client.get_config();
-    assert_eq!(config.threshold, 2);
+    assert_eq!(config.threshold, 3);
     assert_eq!(config.owners.len(), 3);
     assert_eq!(config.next_proposal_id, 0);
     assert!(f.client.is_owner(&f.alice));
@@ -68,6 +68,20 @@ fn constructor_rejects_duplicate_owner() {
     env.register(
         PduMultisigTreasury,
         (vec![&env, owner.clone(), owner], 1_u32, token),
+    );
+}
+
+#[test]
+#[should_panic]
+fn constructor_rejects_non_unanimous_threshold() {
+    let env = Env::default();
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+    let token = Address::generate(&env);
+    env.register(
+        PduMultisigTreasury,
+        (vec![&env, alice, bob, carol], 2_u32, token),
     );
 }
 
@@ -119,8 +133,10 @@ fn proposal_rejects_161_byte_memo() {
 }
 
 #[test]
-fn approve_rejects_duplicates_and_enables_execution() {
+fn all_three_owners_must_approve_and_duplicates_are_rejected() {
     let f = fixture();
+    f.token_admin.mint(&f.alice, &20_000_000);
+    f.client.deposit(&f.alice, &20_000_000);
     let expires = f.env.ledger().sequence() + 100;
     let id = f.client.create_proposal(
         &f.alice,
@@ -130,10 +146,13 @@ fn approve_rejects_duplicates_and_enables_execution() {
         &expires,
     );
     assert_eq!(f.client.approve(&f.bob, &id), 2);
+    assert!(!f.client.is_executable(&id));
     assert_eq!(
         f.client.try_approve(&f.bob, &id),
         Err(Ok(Error::AlreadyApproved))
     );
+    assert_eq!(f.client.approve(&f.carol, &id), 3);
+    assert!(f.client.is_executable(&id));
 }
 
 #[test]
@@ -173,8 +192,13 @@ fn execute_transfers_once_after_threshold() {
         Err(Ok(Error::NotEnoughApprovals))
     );
     f.client.approve(&f.bob, &id);
+    assert_eq!(
+        f.client.try_execute(&f.alice, &id),
+        Err(Ok(Error::NotEnoughApprovals))
+    );
+    f.client.approve(&f.carol, &id);
     assert!(f.client.is_executable(&id));
-    f.client.execute(&f.carol, &id);
+    f.client.execute(&f.alice, &id);
     assert_eq!(f.token.balance(&f.david), 30_000_000);
     assert_eq!(f.client.treasury_balance(), 70_000_000);
     assert_eq!(f.client.get_proposal(&id).status, ProposalStatus::Executed);
@@ -217,6 +241,7 @@ fn insufficient_balance_does_not_change_status() {
         &expires,
     );
     f.client.approve(&f.bob, &id);
+    f.client.approve(&f.carol, &id);
     assert_eq!(
         f.client.try_execute(&f.carol, &id),
         Err(Ok(Error::InsufficientTreasuryBalance))

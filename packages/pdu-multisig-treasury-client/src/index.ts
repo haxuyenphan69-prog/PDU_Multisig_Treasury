@@ -2,6 +2,7 @@ export const NETWORK = "TESTNET" as const;
 export const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 export const RPC_URL = "https://soroban-testnet.stellar.org";
 export const XLM_SCALE = 10_000_000n;
+export const REQUIRED_APPROVALS = 3 as const;
 
 export type ProposalStatus = "Pending" | "Executed" | "Cancelled";
 export type TreasuryConfig = { owners: string[]; threshold: number; token: string; nextProposalId: bigint };

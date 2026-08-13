@@ -1,6 +1,8 @@
 # PDU Multisig Treasury
 
-Kho quỹ XLM đa chữ ký cấp ứng dụng trên Stellar/Soroban. Mỗi khoản chi đi qua ba bước: **tạo đề xuất → đủ phê duyệt → thực thi**. Bản V1 mặc định dùng mô hình 2/3 owner (Alice, Bob, Carol), native XLM qua Stellar Asset Contract và Freighter để kết nối ví.
+Kho quỹ XLM đa chữ ký cấp ứng dụng trên Stellar/Soroban. Mỗi khoản chi đi qua ba bước: **tạo đề xuất → đủ phê duyệt → thực thi**. Bản nâng cấp dùng mô hình đồng thuận bắt buộc **3/3 owner** (Alice, Bob, Carol), native XLM qua Stellar Asset Contract và Freighter để kết nối ví.
+
+Đề xuất xuất hiện trong phòng ký chung của cả ba owner. Người tạo tự ký chữ ký đầu tiên; hai owner còn lại phải mở đề xuất và xác nhận bằng đúng ví của mình. Contract chỉ cho phép `execute` khi đủ cả ba chữ ký, đồng thời chặn ký trùng và người ngoài danh sách owner.
 
 > Đây là multisig workflow trong smart contract, không phải native account multisig và không triển khai custom `__check_auth`.
 
@@ -10,7 +12,17 @@ Kho quỹ XLM đa chữ ký cấp ứng dụng trên Stellar/Soroban. Mỗi kho�
 2. Nhấp đúp **`CHAY_WEB.bat`**.
 3. Chờ trình duyệt mở `http://localhost:3000`.
 
-Lần đầu, file sẽ tự cài dependency nếu cần. Các lần sau web khởi động ngay. Dữ liệu demo đã có sẵn và được lưu trên chính trình duyệt, vì vậy có thể thử tạo proposal, approve, execute và nạp quỹ mà chưa cần Testnet.
+Lần đầu, file sẽ tự cài dependency nếu cần. Các lần sau web khởi động ngay. Dữ liệu demo đã có sẵn và được lưu trên chính trình duyệt, vì vậy có thể thử đầy đủ luồng Alice tạo và ký 1/3 → Bob ký 2/3 → Carol ký 3/3 → thực thi mà chưa cần Testnet.
+
+### Cách thử đúng luồng ba tài khoản
+
+1. Nhấn **Khôi phục demo** để đưa dữ liệu về trạng thái ban đầu.
+2. Chọn **Alice**, tạo đề xuất mới. Alice tự ký chữ ký đầu tiên.
+3. Chuyển sang **Bob**, mở cùng đề xuất và ký. Ở 2/3, nút thực thi vẫn bị khóa.
+4. Chuyển sang **Carol**, mở cùng đề xuất và ký chữ ký thứ ba.
+5. Khi trạng thái đạt 3/3, nhấn **Thực thi khoản chi** và xác nhận lần cuối.
+
+Nút đổi Alice/Bob/Carol là phòng kiểm thử ba vai trò trên cùng máy. Khi deploy contract và điền Contract ID Testnet, nguồn dữ liệu dùng chung phải là storage/event của Soroban RPC; mỗi owner kết nối địa chỉ Freighter của mình. Bản demo không lưu hoặc giả lập secret key.
 
 Điều kiện duy nhất của máy chạy: **Node.js 22 trở lên**. Tải tại <https://nodejs.org/> nếu Windows báo chưa có Node.js.
 
@@ -90,7 +102,7 @@ Cài Rust, target `wasm32v1-none`, Stellar CLI và Freighter. Sau đó:
 ```cmd
 stellar keys generate --global alice --network testnet --fund
 stellar contract id asset --asset native --network testnet
-stellar contract deploy --wasm pdu_multisig_treasury.wasm --source alice --network testnet --alias pdu_treasury -- --owners '["G_ALICE","G_BOB","G_CAROL"]' --threshold 2 --token C_NATIVE_XLM_SAC
+stellar contract deploy --wasm pdu_multisig_treasury.wasm --source alice --network testnet --alias pdu_treasury -- --owners '["G_ALICE","G_BOB","G_CAROL"]' --threshold 3 --token C_NATIVE_XLM_SAC
 ```
 
 Lưu Contract ID và SAC ID vào file `.env.local` dựa trên `.env.example`, rồi chạy lại frontend. Không commit secret key hoặc seed phrase. Freighter giữ khóa trên thiết bị người dùng.
@@ -108,9 +120,9 @@ CHAY_WEB.bat                       Chạy một chạm
 
 ## Kiểm thử đã xác nhận
 
-- 11 Rust unit/integration tests trọng yếu: constructor, duplicate owner, SAC deposit, amount, memo byte length, proposal auto-approval, duplicate approval, cancel, threshold, expiry, one-time execute và rollback khi thiếu balance.
+- 12 Rust unit/integration tests trọng yếu: constructor, bắt buộc threshold 3/3, duplicate owner, SAC deposit, amount, memo byte length, proposal auto-approval, duplicate approval, cancel, expiry, one-time execute và rollback khi thiếu balance.
 - Frontend production build thành công.
-- Kiểm tra tương tác tạo proposal thành công.
+- Kiểm tra tương tác hoàn chỉnh Alice 1/3 → Bob 2/3 (chưa thể chi) → Carol 3/3 → thực thi và trừ đúng số dư.
 - Responsive 375 px không bị tràn ngang.
 
 Danh mục 322 test case trong kế hoạch là acceptance catalog gồm automated, frontend, Studio, deploy và manual evidence; không nên mô tả cả 322 là Rust unit test.
