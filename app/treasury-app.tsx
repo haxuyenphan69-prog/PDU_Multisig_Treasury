@@ -281,7 +281,17 @@ export default function TreasuryApp() {
     }
     setSyncing(true);
     try {
-      const { getNetworkDetails, requestAccess } = await import("@stellar/freighter-api");
+      const { getNetworkDetails, isConnected, requestAccess } = await import("@stellar/freighter-api");
+      const connection = await Promise.race([
+        isConnected(),
+        new Promise<never>((_, reject) => window.setTimeout(
+          () => reject(new Error("Freighter không phản hồi. Hãy kiểm tra extension rồi thử lại.")),
+          3_000,
+        )),
+      ]);
+      if (connection.error || !connection.isConnected) {
+        throw new Error("Không tìm thấy Freighter. Hãy cài extension Freighter rồi mở lại trang này.");
+      }
       const access = await requestAccess();
       if (access.error) throw new Error(access.error.message || "Freighter từ chối kết nối");
       const network = await getNetworkDetails();
