@@ -337,6 +337,11 @@ export default function TreasuryApp() {
 
   async function confirmExecute() {
     if (!session || !active || !isChainConfigured || active.status !== "ready" || active.approvals.length !== 3) return;
+    if (balance < active.amount) {
+      setModal(null);
+      notify(`Kho quỹ chỉ có ${fmt(balance)} XLM, chưa đủ ${fmt(active.amount)} XLM để thực thi. Hãy nạp quỹ trước.`);
+      return;
+    }
     setSyncing(true);
     try {
       await chainActions.execute(session.address, BigInt(active.id));
@@ -470,7 +475,7 @@ export default function TreasuryApp() {
           <dl><div><dt>Người nhận</dt><dd>{shortAddress(active.recipient)}<button className="copy-address" type="button" aria-label="Sao chép địa chỉ" onClick={() => void copyRecipient()}><Copy /></button></dd></div><div><dt>Người tạo</dt><dd>{active.proposer}</dd></div><div><dt>Thời hạn</dt><dd>{active.expires}</dd></div></dl>
           <div className="approval-progress"><div><span>TIẾN ĐỘ ĐỒNG THUẬN</span><b>{active.approvals.length}/3 chữ ký</b></div><div className="progress-track"><i style={{ width: `${active.approvals.length / 3 * 100}%` }} /></div></div>
           <div className="signer-list">{OWNER_NAMES.map((name) => { const signed = active.approvals.includes(name); const current = session?.owner === name; return <div key={name} className={current ? "current" : ""}><OwnerAvatar name={name} signed={signed}/><span><b>{name}{current && <em>Phiên này</em>}</b><small>{shortAddress(ownerAddresses[name])}</small></span><strong className={signed ? "signed-text" : "waiting-text"}>{signed ? "Đã ký" : "Chưa ký"}</strong></div>; })}</div>
-          <ApprovalAction proposal={active} session={session} configured={isChainConfigured} openSign={() => requireLiveSession("sign")} openExecute={() => requireLiveSession("execute")} />
+          <ApprovalAction proposal={active} session={session} configured={isChainConfigured} treasuryBalance={balance} openSign={() => requireLiveSession("sign")} openExecute={() => requireLiveSession("execute")} />
           </> : <div className="empty-list"><Fingerprint /><span>Chưa có proposal on-chain. Kết nối owner rồi tạo khoản chi đầu tiên.</span></div>}
         </aside>
       </section>
@@ -492,11 +497,12 @@ function OwnerAvatar({ name, signed = false }: { name: OwnerName; signed?: boole
   return <i className={`owner-avatar ${signed ? "signed" : ""}`}>{signed ? <Check /> : OWNER_META[name].number}</i>;
 }
 
-function ApprovalAction({ proposal, session, configured, openSign, openExecute }: { proposal: Proposal; session: Session | null; configured: boolean; openSign: () => void; openExecute: () => void }) {
+function ApprovalAction({ proposal, session, configured, treasuryBalance, openSign, openExecute }: { proposal: Proposal; session: Session | null; configured: boolean; treasuryBalance: number; openSign: () => void; openExecute: () => void }) {
   if (!configured) return <div className="action-state preview"><LockKeyhole /><span><b>Preview chỉ đọc</b><small>Cấu hình Contract ID để bật chữ ký thật.</small></span></div>;
   if (!session) return <div className="action-state muted"><Wallet /><span><b>Chưa có phiên owner</b><small>Kết nối Freighter để kiểm tra quyền ký.</small></span></div>;
   if (proposal.status === "executed") return <div className="action-state success"><CheckCircle2 /><span><b>Khoản chi đã hoàn tất</b><small>{proposal.executedAt ?? "Đã xác nhận trên ledger"}</small></span></div>;
   if (["cancelled", "expired"].includes(proposal.status)) return <div className="action-state muted"><CircleAlert /><span><b>Đề xuất đã đóng</b><small>Không thể thêm chữ ký hoặc thực thi.</small></span></div>;
+  if (proposal.status === "ready" && treasuryBalance < proposal.amount) return <div className="action-state muted"><CircleAlert /><span><b>Đủ 3/3 nhưng kho quỹ chưa đủ XLM</b><small>Cần {fmt(proposal.amount)} XLM; hiện có {fmt(treasuryBalance)} XLM. Nạp quỹ trước khi thực thi.</small></span></div>;
   if (proposal.status === "ready") return <button className="approval-action execute" onClick={openExecute}><Fingerprint /><span><b>Thực thi khoản chi</b><small>Đủ 3/3 — gửi transaction chuyển tiền</small></span><ArrowRight /></button>;
   if (proposal.approvals.includes(session.owner)) return <div className="action-state signed"><CheckCircle2 /><span><b>Ví này đã ký</b><small>Đổi tài khoản Freighter để owner tiếp theo xác nhận.</small></span></div>;
   return <button className="approval-action" onClick={openSign}><KeyRound /><span><b>Ký bằng {session.owner}</b><small>Freighter sẽ yêu cầu xác nhận transaction {proposal.approvals.length + 1}/3</small></span><ArrowRight /></button>;

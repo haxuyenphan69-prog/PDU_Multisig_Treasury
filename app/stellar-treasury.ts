@@ -81,6 +81,16 @@ function address(value: string) {
   return nativeToScVal(Address.fromString(value));
 }
 
+function transactionFailureMessage(result: unknown): string {
+  const detail = JSON.stringify(result);
+  // Error 17 is InsufficientTreasuryBalance in this contract. Keeping this
+  // mapping here prevents raw Soroban diagnostic events from reaching users.
+  if (detail.includes("#17") || detail.includes("InsufficientTreasuryBalance")) {
+    return "Kho quỹ không đủ XLM để thực thi khoản chi này. Hãy nạp thêm XLM vào treasury rồi thử lại.";
+  }
+  return "Transaction bị contract từ chối. Hãy kiểm tra lại trạng thái proposal và số dư treasury rồi thử lại.";
+}
+
 async function submit(sourceAddress: string, method: string, params: xdr.ScVal[]) {
   if (!isChainConfigured) throw new Error("Chưa cấu hình Contract ID Testnet");
   const server = new rpc.Server(RPC_URL);
@@ -99,7 +109,7 @@ async function submit(sourceAddress: string, method: string, params: xdr.ScVal[]
   const sent = await server.sendTransaction(signedTransaction);
   if (sent.status === "ERROR") throw new Error("RPC từ chối transaction");
   const final = await server.pollTransaction(sent.hash, { attempts: 30 });
-  if (final.status !== "SUCCESS") throw new Error(`Transaction chưa thành công: ${final.status}`);
+  if (final.status !== "SUCCESS") throw new Error(transactionFailureMessage(final));
   return sent.hash;
 }
 
