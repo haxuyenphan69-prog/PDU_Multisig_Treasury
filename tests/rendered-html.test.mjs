@@ -16,7 +16,7 @@ test("server renders the real-wallet PDU treasury shell", async () => {
   const html = await response.text();
   assert.match(html, /PDU Treasury/);
   assert.match(html, /Ba ví độc lập/);
-  assert.match(html, /READ-ONLY PREVIEW/);
+  assert.match(html, /TESTNET LIVE/);
   assert.match(html, /treasury-app/);
   assert.doesNotMatch(html, /Alice|Bob|Carol/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);

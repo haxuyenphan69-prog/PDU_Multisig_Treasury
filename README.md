@@ -14,6 +14,17 @@
 4. Đổi sang **Owner 03**, kết nối lại và xác nhận approval 3/3.
 5. Khi proposal đạt 3/3, một owner kết nối có thể gửi transaction `execute` cuối cùng để chuyển XLM.
 
+## Contract Testnet đang hoạt động
+
+- Contract ID: `CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB`
+- Native XLM SAC: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
+- Threshold: `3/3`
+- Owner 01: `GCRKBBW7GN4KUYSCPMWE5N3RL3FJAQQYG4BHKH4L2QY5R7XX2LB22ZCK`
+- Owner 02: `GAQ6FR2SYNHESJP4Q2QBDL527624IGCYTYIZBHVRU3GOIABKZZUNSXTU`
+- Owner 03: `GBK36GGL2SBMP3AS54WSTXKTFH2XHSVSP2FUF2IG45ORETNOGU7UHVZN`
+
+[Mở contract bằng Stellar Lab](https://lab.stellar.org/r/testnet/contract/CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB)
+
 Mỗi lần kết nối, frontend kiểm tra:
 
 - Freighter đang dùng **Stellar Testnet**.

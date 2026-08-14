@@ -11,7 +11,8 @@ import {
 } from "@stellar/stellar-sdk";
 import { signTransaction } from "@stellar/freighter-api";
 
-const CONTRACT_ID = process.env.NEXT_PUBLIC_TREASURY_CONTRACT_ID?.trim() ?? "";
+const DEPLOYED_TESTNET_CONTRACT_ID = "CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB";
+const CONTRACT_ID = process.env.NEXT_PUBLIC_TREASURY_CONTRACT_ID?.trim() || DEPLOYED_TESTNET_CONTRACT_ID;
 const RPC_URL = process.env.NEXT_PUBLIC_STELLAR_RPC_URL?.trim() || "https://soroban-testnet.stellar.org";
 const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE?.trim() || Networks.TESTNET;
 const XLM_SCALE = 10_000_000n;
