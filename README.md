@@ -1,34 +1,43 @@
 # PDU Multisig Treasury
 
-Kho quỹ XLM đa chữ ký cấp ứng dụng trên Stellar/Soroban. Mỗi khoản chi đi qua ba bước: **tạo đề xuất → đủ phê duyệt → thực thi**. Bản nâng cấp dùng mô hình đồng thuận bắt buộc **3/3 owner** (Alice, Bob, Carol), native XLM qua Stellar Asset Contract và Freighter để kết nối ví.
+Ứng dụng quản lý kho quỹ XLM đa chữ ký trên Stellar/Soroban. Mỗi khoản chi phải nhận đủ chữ ký của **3/3 owner độc lập** trước khi contract cho phép thực thi.
 
-Đề xuất xuất hiện trong phòng ký chung của cả ba owner. Người tạo tự ký chữ ký đầu tiên; hai owner còn lại phải mở đề xuất và xác nhận bằng đúng ví của mình. Contract chỉ cho phép `execute` khi đủ cả ba chữ ký, đồng thời chặn ký trùng và người ngoài danh sách owner.
+> Đây là multisig workflow ở tầng smart contract, không phải native Stellar account multisig và không triển khai custom `__check_auth`.
 
-> Đây là multisig workflow trong smart contract, không phải native account multisig và không triển khai custom `__check_auth`.
+## Luồng ba tài khoản thật
 
-## Chạy nhanh nhất trên Windows
+Ứng dụng không có nút giả lập chuyển vai trò. Danh tính hiện tại luôn được lấy từ đúng địa chỉ ví Freighter đang kết nối:
+
+1. **Owner 01** mở Freighter bằng tài khoản thứ nhất, kết nối DApp và tạo proposal. Contract tự ghi approval 1/3 của người tạo.
+2. Owner 01 ngắt phiên trong DApp. Người dùng đổi sang tài khoản **Owner 02** trong Freighter, kết nối lại và ký proposal thành 2/3.
+3. Tiếp tục đổi sang tài khoản **Owner 03**, kết nối lại và ký approval 3/3.
+4. Khi proposal đạt 3/3, một owner kết nối có thể gửi transaction `execute` cuối cùng để chuyển XLM.
+
+Mỗi lần kết nối, frontend kiểm tra:
+
+- Freighter đang dùng **Stellar Testnet**.
+- Địa chỉ G... có nằm trong danh sách owner của contract hay không.
+- Ví hiện tại đã ký proposal này chưa.
+- Proposal đã đủ đúng 3/3 approval trước khi mở quyền thực thi hay chưa.
+
+Nếu người dùng đổi tài khoản hoặc đổi mạng trong Freighter, DApp tự huỷ phiên hiện tại và bắt buộc kết nối lại. Frontend không lưu secret key hay seed phrase.
+
+## Hai chế độ giao diện
+
+- **READ-ONLY PREVIEW:** chưa có `NEXT_PUBLIC_TREASURY_CONTRACT_ID`. Website chỉ hiển thị dữ liệu minh hoạ; tạo, ký, nạp quỹ và thực thi đều bị khoá. Không có chữ ký giả hoặc dữ liệu giả được ghi vào trình duyệt.
+- **TESTNET LIVE:** đã cấu hình Contract ID hợp lệ. Proposal, approval, balance và owner được đọc từ Soroban RPC; transaction được ký bằng Freighter.
+
+## Chạy nhanh trên Windows
+
+### Cách 1: file chạy có sẵn
 
 1. Giải nén project.
-2. Nhấp đúp **`CHAY_WEB.bat`**.
-3. Chờ trình duyệt mở `http://localhost:3000`.
+2. Nhấp đúp `CHAY_WEB.bat`.
+3. Mở địa chỉ Terminal hiển thị, thường là <http://localhost:3000>.
 
-Lần đầu, file sẽ tự cài dependency nếu cần. Các lần sau web khởi động ngay. Dữ liệu demo đã có sẵn và được lưu trên chính trình duyệt, vì vậy có thể thử đầy đủ luồng Alice tạo và ký 1/3 → Bob ký 2/3 → Carol ký 3/3 → thực thi mà chưa cần Testnet.
+### Cách 2: CMD/Terminal
 
-### Cách thử đúng luồng ba tài khoản
-
-1. Nhấn **Khôi phục demo** để đưa dữ liệu về trạng thái ban đầu.
-2. Chọn **Alice**, tạo đề xuất mới. Alice tự ký chữ ký đầu tiên.
-3. Chuyển sang **Bob**, mở cùng đề xuất và ký. Ở 2/3, nút thực thi vẫn bị khóa.
-4. Chuyển sang **Carol**, mở cùng đề xuất và ký chữ ký thứ ba.
-5. Khi trạng thái đạt 3/3, nhấn **Thực thi khoản chi** và xác nhận lần cuối.
-
-Nút đổi Alice/Bob/Carol là phòng kiểm thử ba vai trò trên cùng máy. Khi deploy contract và điền Contract ID Testnet, frontend tự chuyển sang **TESTNET LIVE**: đọc config/proposal/approval/balance qua Soroban RPC, đối chiếu địa chỉ Freighter với owner và gửi transaction `create_proposal`, `approve`, `execute`, `deposit` thật. Vì storage contract là nguồn dữ liệu chung, ba máy sẽ nhìn thấy cùng một đề xuất sau khi bấm đồng bộ. Bản demo không lưu hoặc giả lập secret key.
-
-Điều kiện duy nhất của máy chạy: **Node.js 22 trở lên**. Tải tại <https://nodejs.org/> nếu Windows báo chưa có Node.js.
-
-## Tải từ GitHub và chạy bằng CMD/Terminal
-
-Máy cần cài **Git** và **Node.js 22 trở lên**. Mở CMD hoặc Windows Terminal rồi chạy lần lượt:
+Máy cần cài [Git](https://git-scm.com/) và [Node.js 22 trở lên](https://nodejs.org/). Chạy từng lệnh:
 
 ```cmd
 git clone https://github.com/haxuyenphan69-prog/PDU_Multisig_Treasury.git
@@ -37,112 +46,122 @@ npm install
 npm run dev
 ```
 
-Sau khi Terminal hiện địa chỉ `http://localhost:3000`, mở địa chỉ đó trên trình duyệt. Giữ cửa sổ Terminal đang chạy trong suốt thời gian sử dụng website; nhấn `Ctrl + C` để dừng.
+Giữ Terminal đang chạy trong suốt thời gian dùng website. Nhấn `Ctrl + C` để dừng.
 
-Nếu đã tải project dạng ZIP, giải nén rồi mở CMD đúng tại thư mục chứa `package.json`, sau đó chạy:
+Nếu tải project dạng ZIP, hãy mở CMD đúng tại thư mục có `package.json`, sau đó chạy:
 
 ```cmd
 npm install
 npm run dev
 ```
 
-Không chạy `npm install` ngay tại `C:\Users\ten-ban` vì npm sẽ không tìm thấy `package.json`.
+Không chạy `npm install` ngay tại `C:\Users\ten-ban`, vì npm sẽ không tìm thấy `package.json`.
 
-### Các lệnh thường dùng
-
-```cmd
-npm run dev
-npm run build
-npm test
-```
-
-- `npm run dev`: chạy website để phát triển và thử nghiệm.
-- `npm run build`: kiểm tra bản build production.
-- `npm test`: chạy kiểm thử render frontend.
-
-## Kiểm tra toàn bộ bài
+## Kiểm tra project
 
 Nhấp đúp `KIEM_TRA_PROJECT.bat`, hoặc chạy:
 
 ```cmd
 cargo test -p pdu-multisig-treasury
 cargo build --target wasm32v1-none --release -p pdu-multisig-treasury
-npm run build
+npm run lint
+npm test
 ```
 
-WASM dựng sẵn nằm tại `pdu_multisig_treasury.wasm`. Source contract nằm tại `contracts/pdu_multisig_treasury/src/lib.rs`.
+WASM đã build nằm tại `pdu_multisig_treasury.wasm`. Source contract nằm tại `contracts/pdu_multisig_treasury/src/lib.rs`.
+
+## Deploy contract lên Testnet
+
+Cài Rust, target `wasm32v1-none`, Stellar CLI và Freighter. Chuẩn bị ba tài khoản Testnet khác nhau:
+
+```cmd
+stellar keys generate --global owner01 --network testnet --fund
+stellar keys generate --global owner02 --network testnet --fund
+stellar keys generate --global owner03 --network testnet --fund
+
+stellar keys address owner01
+stellar keys address owner02
+stellar keys address owner03
+stellar contract id asset --asset native --network testnet
+```
+
+Deploy contract với đúng ba public address và threshold 3:
+
+```cmd
+stellar contract deploy --wasm pdu_multisig_treasury.wasm --source owner01 --network testnet --alias pdu_treasury -- --owners '["G_OWNER_01","G_OWNER_02","G_OWNER_03"]' --threshold 3 --token C_NATIVE_XLM_SAC
+```
+
+Tạo `.env.local` dựa trên `.env.example`:
+
+```env
+NEXT_PUBLIC_TREASURY_CONTRACT_ID=C...CONTRACT_ID_DA_DEPLOY
+NEXT_PUBLIC_XLM_SAC_ID=C...NATIVE_XLM_SAC
+NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+```
+
+Khởi động lại frontend sau khi đổi biến môi trường:
+
+```cmd
+npm run dev
+```
+
+Không commit secret key, seed phrase hoặc file `.env.local`.
+
+## Kiểm thử thủ công bằng ba tài khoản Freighter
+
+1. Import hoặc tạo ba tài khoản Testnet riêng trong Freighter; public address phải trùng cấu hình contract.
+2. Chọn Owner 01 trong Freighter, đặt mạng Testnet, kết nối DApp và tạo proposal.
+3. Kiểm tra proposal hiển thị 1/3. Ngắt phiên DApp.
+4. Chuyển Freighter sang Owner 02, kết nối lại, mở cùng proposal và ký. Ở 2/3 vẫn chưa thể thực thi.
+5. Chuyển Freighter sang Owner 03, kết nối lại và ký. Kiểm tra trạng thái 3/3.
+6. Gửi transaction thực thi. Kiểm tra balance giảm đúng amount và proposal chuyển sang `Executed`.
+7. Thử ví không thuộc owner; DApp phải từ chối quyền ký.
+8. Thử ký lặp bằng cùng owner; contract phải từ chối.
 
 ## Chức năng contract
 
 | Hàm | Mục đích |
 |---|---|
-| `__constructor` | Khóa owners, threshold và token |
+| `__constructor` | Lưu ba owner, threshold 3 và token |
 | `deposit` | Chuyển XLM SAC vào treasury |
-| `create_proposal` | Tạo proposal, proposer tự approve |
-| `approve` | Owner ký đúng một lần |
+| `create_proposal` | Tạo proposal; proposer tự approve |
+| `approve` | Owner ký đúng một lần bằng `require_auth()` |
 | `cancel_proposal` | Proposer huỷ trước khi đủ threshold |
-| `execute` | Chuyển XLM khi đủ ngưỡng |
-| getters | Đọc config, proposal, approvals, balance và trạng thái |
+| `execute` | Chuyển XLM khi đủ 3/3 approval |
+| getters | Đọc config, proposal, approval, balance và trạng thái |
 
-Contract dùng `require_auth()`, `#[contracterror]`, Persistent/Instance storage, event typed và checks-effects-interactions. Khi token transfer thất bại, Soroban rollback cả trạng thái `Executed`.
+Contract dùng `require_auth()`, `#[contracterror]`, Instance/Persistent storage, typed event và checks-effects-interactions. Khi token transfer thất bại, Soroban rollback trạng thái `Executed`.
 
 ## Đơn vị và giới hạn
 
 - `1 XLM = 10,000,000` stroops.
-- Amount on-chain là `i128`; frontend xử lý bằng chuỗi/`BigInt`, không dùng số thực để ký transaction.
-- Tối đa 10 owners.
-- Memo tối đa **160 UTF-8 bytes**.
+- Amount on-chain là `i128`; frontend dùng chuỗi và `BigInt` khi tạo transaction.
+- Contract hỗ trợ tối đa 10 owner, nhưng giao diện này yêu cầu đúng 3 owner và threshold 3.
+- Memo tối đa 160 UTF-8 bytes, bao gồm tiêu đề ghép vào memo.
 - Proposal lifetime tối đa 120.960 ledger.
 - Business expiry độc lập với storage TTL.
 
-## Deploy Testnet thật
-
-Cài Rust, target `wasm32v1-none`, Stellar CLI và Freighter. Sau đó:
-
-```cmd
-stellar keys generate --global alice --network testnet --fund
-stellar contract id asset --asset native --network testnet
-stellar contract deploy --wasm pdu_multisig_treasury.wasm --source alice --network testnet --alias pdu_treasury -- --owners '["G_ALICE","G_BOB","G_CAROL"]' --threshold 3 --token C_NATIVE_XLM_SAC
-```
-
-Lưu Contract ID và SAC ID vào file `.env.local` dựa trên `.env.example`, rồi chạy lại frontend. Không commit secret key hoặc seed phrase. Freighter giữ khóa trên thiết bị người dùng.
-
-```env
-NEXT_PUBLIC_TREASURY_CONTRACT_ID=C...CONTRACT_ID_DA_DEPLOY
-NEXT_PUBLIC_XLM_SAC_ID=C...NATIVE_XLM_SAC
-```
-
-Nếu `NEXT_PUBLIC_TREASURY_CONTRACT_ID` để trống, website chủ động chạy ở **TESTNET DEMO** để có thể chấm giao diện mà không cần ví. Nếu Contract ID hợp lệ, nút đổi vai trò bị khóa; vai trò được lấy từ đúng địa chỉ Freighter đang kết nối.
-
-## Cấu trúc
+## Cấu trúc chính
 
 ```text
-contracts/pdu_multisig_treasury/   Rust contract + tests
-packages/pdu-multisig-treasury-client/  Types, error map, XLM helpers
-app/                               Frontend React/TypeScript
-app/stellar-treasury.ts            Soroban RPC + Freighter live adapter
-docs/SOROBAN_STUDIO.md             Hướng dẫn Studio
-pdu_multisig_treasury.wasm         WASM đã build
-CHAY_WEB.bat                       Chạy một chạm
+contracts/pdu_multisig_treasury/       Rust contract + tests
+packages/pdu-multisig-treasury-client/ TypeScript helpers
+app/                                   React frontend
+app/stellar-treasury.ts                Soroban RPC + Freighter adapter
+docs/SOROBAN_STUDIO.md                 Hướng dẫn Soroban Studio
+pdu_multisig_treasury.wasm             WASM đã build
+CHAY_WEB.bat                            Chạy website trên Windows
 ```
-
-## Kiểm thử đã xác nhận
-
-- 12 Rust unit/integration tests trọng yếu: constructor, bắt buộc threshold 3/3, duplicate owner, SAC deposit, amount, memo byte length, proposal auto-approval, duplicate approval, cancel, expiry, one-time execute và rollback khi thiếu balance.
-- Frontend production build thành công.
-- Kiểm tra tương tác hoàn chỉnh Alice 1/3 → Bob 2/3 (chưa thể chi) → Carol 3/3 → thực thi và trừ đúng số dư.
-- Responsive 375 px không bị tràn ngang.
-
-Danh mục 322 test case trong kế hoạch là acceptance catalog gồm automated, frontend, Studio, deploy và manual evidence; không nên mô tả cả 322 là Rust unit test.
 
 ## Tài liệu tham khảo
 
-- [Stellar Hello World](https://developers.stellar.org/docs/build/smart-contracts/getting-started/hello-world)
+- [Stellar Smart Contracts: Hello World](https://developers.stellar.org/docs/build/smart-contracts/getting-started/hello-world)
 - [Stellar Asset Contract](https://developers.stellar.org/docs/build/guides/tokens/stellar-asset-contract)
 - [Soroban authorization](https://developers.stellar.org/docs/learn/fundamentals/contract-development/authorization)
 - [Soroban Studio](https://soroban.studio/)
-- [stellar-notes-dapp](https://github.com/minhbear/stellar-notes-dapp) — chỉ tham khảo cấu trúc học tập
+- [stellar-notes-dapp](https://github.com/minhbear/stellar-notes-dapp) — tham khảo cấu trúc học tập
 
 ## Lưu ý
 
-Project phục vụ học tập trên Testnet, chưa qua kiểm toán bảo mật và không dùng với tiền thật. Event RPC có thời gian lưu hữu hạn; lịch sử dài hạn cần indexer off-chain.
+Project dùng cho học tập trên Testnet, chưa qua kiểm toán bảo mật và không dùng với tiền thật. Event RPC có thời gian lưu hữu hạn; lịch sử dài hạn cần indexer off-chain.

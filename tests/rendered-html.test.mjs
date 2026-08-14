@@ -10,13 +10,14 @@ async function render() {
   }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-test("server renders the PDU treasury shell", async () => {
+test("server renders the real-wallet PDU treasury shell", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /PDU Treasury/);
-  assert.match(html, /Ba người cùng quyết/);
-  assert.match(html, /Kho quỹ đồng thuận 3\/3/);
+  assert.match(html, /Ba ví độc lập/);
+  assert.match(html, /READ-ONLY PREVIEW/);
   assert.match(html, /treasury-app/);
+  assert.doesNotMatch(html, /Alice|Bob|Carol/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });

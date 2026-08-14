@@ -2,133 +2,222 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowDownToLine, ArrowRight, Check, CheckCircle2, ChevronRight,
-  CircleAlert, Clock3, Copy, ExternalLink, FilePlus2, Fingerprint, KeyRound,
-  Landmark, LockKeyhole, Menu, Plus, RefreshCw, RotateCcw, ShieldCheck,
-  Sparkles, Users, Wallet, X,
+  ArrowDownToLine,
+  ArrowRight,
+  BadgeCheck,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleAlert,
+  Clock3,
+  Copy,
+  ExternalLink,
+  FilePlus2,
+  Fingerprint,
+  KeyRound,
+  Landmark,
+  LockKeyhole,
+  LogOut,
+  Menu,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Unplug,
+  Users,
+  Wallet,
+  X,
+  Zap,
 } from "lucide-react";
-import { chainActions, isChainConfigured, loadChainSnapshot } from "./stellar-treasury";
+import { Networks } from "@stellar/stellar-sdk";
+import { chainActions, isChainConfigured, loadChainSnapshot, type ChainSnapshot } from "./stellar-treasury";
 
-type OwnerName = "Alice" | "Bob" | "Carol";
+type OwnerName = "Owner 01" | "Owner 02" | "Owner 03";
 type Status = "pending" | "ready" | "executed" | "cancelled" | "expired";
 type Proposal = {
-  id: number; title: string; memo: string; recipient: string; amount: number;
-  approvals: OwnerName[]; status: Status; created: string; expires: string;
-  proposer: OwnerName; executedAt?: string;
+  id: number;
+  title: string;
+  memo: string;
+  recipient: string;
+  amount: number;
+  approvals: OwnerName[];
+  status: Status;
+  created: string;
+  expires: string;
+  proposer: OwnerName;
+  executedAt?: string;
 };
 type ActivityItem = { id: string; actor: OwnerName; action: string; detail: string; time: string };
+type Session = { address: string; owner: OwnerName };
 
-const OWNERS: Record<OwnerName, { address: string; role: string; tone: string }> = {
-  Alice: { address: "GAKQ4...2FME", role: "Trưởng quỹ", tone: "coral" },
-  Bob: { address: "GC7BW...P3AA", role: "Kiểm soát", tone: "blue" },
-  Carol: { address: "GB3PH...09KD", role: "Vận hành", tone: "gold" },
+const OWNER_NAMES: OwnerName[] = ["Owner 01", "Owner 02", "Owner 03"];
+const OWNER_META: Record<OwnerName, { role: string; number: string }> = {
+  "Owner 01": { role: "Khởi tạo & phê duyệt", number: "01" },
+  "Owner 02": { role: "Kiểm soát độc lập", number: "02" },
+  "Owner 03": { role: "Đồng thuận cuối", number: "03" },
 };
-const OWNER_NAMES = Object.keys(OWNERS) as OwnerName[];
-const DEMO_OWNER_ADDRESSES: Record<OwnerName, string> = {
-  Alice: OWNERS.Alice.address,
-  Bob: OWNERS.Bob.address,
-  Carol: OWNERS.Carol.address,
+const PREVIEW_ADDRESSES: Record<OwnerName, string> = {
+  "Owner 01": "GAKQ4...2FME",
+  "Owner 02": "GC7BW...P3AA",
+  "Owner 03": "GB3PH...09KD",
 };
-const STORAGE_KEY = "pdu-treasury-v2-unanimous";
-const INITIAL_PROPOSALS: Proposal[] = [
-  { id: 4, title: "Tài trợ Demo Day mùa thu", memo: "Ngân sách sân khấu, âm thanh và truyền thông cho Demo Day PDU.", recipient: "GDAV4...KQ9M", amount: 280, approvals: ["Alice", "Bob"], status: "pending", created: "13 Thg 8", expires: "Còn 5 ngày", proposer: "Alice" },
-  { id: 3, title: "Gia hạn máy chủ cộng đồng", memo: "Chi phí hạ tầng ba tháng cho cổng sinh viên.", recipient: "GBH8K...7R2P", amount: 85.5, approvals: ["Carol"], status: "pending", created: "12 Thg 8", expires: "Còn 3 ngày", proposer: "Carol" },
-  { id: 2, title: "Học bổng Stellar Bootcamp", memo: "Hỗ trợ 5 sinh viên hoàn thành chương trình Soroban.", recipient: "GCGQ9...L5TX", amount: 500, approvals: ["Alice", "Bob", "Carol"], status: "executed", created: "04 Thg 8", expires: "Đã thực thi", proposer: "Alice", executedAt: "04 Thg 8 · 16:42" },
-  { id: 1, title: "Workshop Rust cơ bản", memo: "Chi phí diễn giả và tài liệu workshop.", recipient: "GDM2F...K11C", amount: 120, approvals: ["Bob"], status: "cancelled", created: "28 Thg 7", expires: "Đã huỷ", proposer: "Bob" },
+const PREVIEW_PROPOSALS: Proposal[] = [
+  {
+    id: 4,
+    title: "Tài trợ Demo Day mùa thu",
+    memo: "Ngân sách sân khấu, âm thanh và truyền thông cho Demo Day PDU.",
+    recipient: "GDAV4...KQ9M",
+    amount: 280,
+    approvals: ["Owner 01", "Owner 02"],
+    status: "pending",
+    created: "13 Thg 8",
+    expires: "Còn 5 ngày",
+    proposer: "Owner 01",
+  },
+  {
+    id: 3,
+    title: "Gia hạn máy chủ cộng đồng",
+    memo: "Chi phí hạ tầng ba tháng cho cổng sinh viên.",
+    recipient: "GBH8K...7R2P",
+    amount: 85.5,
+    approvals: ["Owner 03"],
+    status: "pending",
+    created: "12 Thg 8",
+    expires: "Còn 3 ngày",
+    proposer: "Owner 03",
+  },
+  {
+    id: 2,
+    title: "Học bổng Stellar Bootcamp",
+    memo: "Hỗ trợ năm sinh viên hoàn thành chương trình Soroban.",
+    recipient: "GCGQ9...L5TX",
+    amount: 500,
+    approvals: OWNER_NAMES,
+    status: "executed",
+    created: "04 Thg 8",
+    expires: "Đã thực thi",
+    proposer: "Owner 01",
+    executedAt: "04 Thg 8 · 16:42",
+  },
 ];
-const INITIAL_ACTIVITY: ActivityItem[] = [
-  { id: "a1", actor: "Carol", action: "đã ký", detail: "Đề xuất #03", time: "11:08" },
-  { id: "a2", actor: "Bob", action: "đã ký", detail: "Đề xuất #04", time: "10:46" },
-  { id: "a3", actor: "Alice", action: "đã tạo", detail: "Đề xuất #04", time: "09:30" },
+const PREVIEW_ACTIVITY: ActivityItem[] = [
+  { id: "a1", actor: "Owner 02", action: "đã ký", detail: "Đề xuất #04", time: "10:46" },
+  { id: "a2", actor: "Owner 01", action: "đã tạo", detail: "Đề xuất #04", time: "09:30" },
+  { id: "a3", actor: "Owner 03", action: "đã thực thi", detail: "Đề xuất #02", time: "04 Thg 8" },
 ];
-const LABEL: Record<Status, string> = { pending: "Đang ký", ready: "Đủ 3 chữ ký", executed: "Đã giải ngân", cancelled: "Đã huỷ", expired: "Hết hạn" };
-const fmt = (n: number) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(n);
-const shortNow = () => new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+const LABEL: Record<Status, string> = {
+  pending: "Đang ký",
+  ready: "Đủ 3 chữ ký",
+  executed: "Đã giải ngân",
+  cancelled: "Đã huỷ",
+  expired: "Hết hạn",
+};
+const fmt = (value: number) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value);
+const shortAddress = (address: string) => address.length > 14 ? `${address.slice(0, 7)}...${address.slice(-5)}` : address;
+
+function mapSnapshot(snapshot: ChainSnapshot) {
+  if (snapshot.owners.length !== 3 || snapshot.threshold !== 3) {
+    throw new Error("Contract phải có đúng 3 owner và ngưỡng đồng thuận 3/3");
+  }
+  const addresses = Object.fromEntries(
+    OWNER_NAMES.map((name, index) => [name, snapshot.owners[index]]),
+  ) as Record<OwnerName, string>;
+  const ownerFor = (address: string): OwnerName => {
+    const owner = OWNER_NAMES.find((name) => addresses[name] === address);
+    if (!owner) throw new Error(`Địa chỉ ${shortAddress(address)} không thuộc cấu hình owner`);
+    return owner;
+  };
+  const proposals = snapshot.proposals.map((proposal) => {
+    const [title, ...memoParts] = proposal.memo.split(": ");
+    const approvals = proposal.approvals.map(ownerFor);
+    const expired = snapshot.latestLedger >= proposal.expiresAtLedger;
+    const status: Status = proposal.status === "Executed"
+      ? "executed"
+      : proposal.status === "Cancelled"
+        ? "cancelled"
+        : expired
+          ? "expired"
+          : approvals.length === 3
+            ? "ready"
+            : "pending";
+    return {
+      id: Number(proposal.id),
+      title: title || `Đề xuất #${proposal.id}`,
+      memo: memoParts.join(": ") || proposal.memo,
+      recipient: proposal.recipient,
+      amount: Number(proposal.amount) / 10_000_000,
+      approvals,
+      status,
+      created: `Ledger ${proposal.createdAtLedger.toLocaleString("vi-VN")}`,
+      expires: expired ? "Đã hết hạn" : `Còn ${proposal.expiresAtLedger - snapshot.latestLedger} ledger`,
+      proposer: ownerFor(proposal.proposer),
+    } satisfies Proposal;
+  });
+  const activity = proposals.flatMap((proposal) => proposal.approvals.map((actor) => ({
+    id: `chain-${proposal.id}-${actor}`,
+    actor,
+    action: "đã ký on-chain",
+    detail: `Đề xuất #${String(proposal.id).padStart(2, "0")}`,
+    time: proposal.created,
+  }))).slice(0, 8);
+  return { addresses, proposals, activity };
+}
 
 export default function TreasuryApp() {
-  const [proposals, setProposals] = useState<Proposal[]>(INITIAL_PROPOSALS);
+  const [proposals, setProposals] = useState<Proposal[]>(PREVIEW_PROPOSALS);
+  const [ownerAddresses, setOwnerAddresses] = useState(PREVIEW_ADDRESSES);
+  const [activity, setActivity] = useState<ActivityItem[]>(PREVIEW_ACTIVITY);
+  const [balance, setBalance] = useState(1842.75);
+  const [latestLedger, setLatestLedger] = useState(0);
   const [selectedId, setSelectedId] = useState(4);
-  const [viewer, setViewer] = useState<OwnerName>("Carol");
+  const [session, setSession] = useState<Session | null>(null);
   const [filter, setFilter] = useState<"all" | "mine" | "closed">("all");
   const [modal, setModal] = useState<"create" | "deposit" | "sign" | "execute" | null>(null);
-  const [wallet, setWallet] = useState("");
-  const [ownerAddresses, setOwnerAddresses] = useState(DEMO_OWNER_ADDRESSES);
-  const [latestLedger, setLatestLedger] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const [balance, setBalance] = useState(1842.75);
-  const [activity, setActivity] = useState<ActivityItem[]>(INITIAL_ACTIVITY);
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
+
   const notify = useCallback((message: string) => {
     setToast(message);
-    window.setTimeout(() => setToast(""), 3000);
+    window.setTimeout(() => setToast(""), 4200);
   }, []);
 
-  useEffect(() => {
-    if (isChainConfigured) return;
-    let data: { proposals?: Proposal[]; balance?: number; activity?: ActivityItem[] } | null = null;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) data = JSON.parse(saved);
-    } catch { /* Dữ liệu demo lỗi sẽ tự về mặc định. */ }
-    const timer = window.setTimeout(() => {
-      if (data) {
-        setProposals(data.proposals ?? INITIAL_PROPOSALS);
-        setBalance(data.balance ?? 1842.75);
-        setActivity(data.activity ?? INITIAL_ACTIVITY);
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
+  const applyLiveSnapshot = useCallback((snapshot: ChainSnapshot) => {
+    const mapped = mapSnapshot(snapshot);
+    setOwnerAddresses(mapped.addresses);
+    setProposals(mapped.proposals);
+    setActivity(mapped.activity);
+    setBalance(Number(snapshot.balance) / 10_000_000);
+    setLatestLedger(snapshot.latestLedger);
+    setSelectedId((current) => mapped.proposals.some((item) => item.id === current)
+      ? current
+      : mapped.proposals[0]?.id ?? 0);
+    return mapped;
   }, []);
-  useEffect(() => {
-    if (isChainConfigured) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ proposals, balance, activity }));
-  }, [proposals, balance, activity]);
 
   const syncChain = useCallback(async () => {
-    if (!isChainConfigured) return;
+    if (!isChainConfigured) {
+      notify("Preview chỉ đọc — cần Contract ID Testnet để đồng bộ dữ liệu thật");
+      return;
+    }
     setSyncing(true);
     try {
       const snapshot = await loadChainSnapshot();
-      if (snapshot.owners.length !== 3) throw new Error("Bản giao diện này yêu cầu đúng 3 owner");
-      const addresses = Object.fromEntries(OWNER_NAMES.map((name, index) => [name, snapshot.owners[index]])) as Record<OwnerName, string>;
-      const nameFor = (address: string) => OWNER_NAMES.find((name) => addresses[name] === address) ?? "Alice";
-      const next = snapshot.proposals.map((proposal) => {
-        const [title, ...memoParts] = proposal.memo.split(": ");
-        return {
-        id: Number(proposal.id),
-        title: title || `Đề xuất #${proposal.id}`,
-        memo: memoParts.join(": ") || proposal.memo,
-        recipient: proposal.recipient,
-        amount: Number(proposal.amount) / 10_000_000,
-        approvals: proposal.approvals.map(nameFor),
-        status: proposal.status === "Executed" ? "executed" : proposal.status === "Cancelled" ? "cancelled" : snapshot.latestLedger >= proposal.expiresAtLedger ? "expired" : proposal.approvalCount === 3 ? "ready" : "pending",
-        created: `Ledger ${proposal.createdAtLedger.toLocaleString("vi-VN")}`,
-        expires: snapshot.latestLedger >= proposal.expiresAtLedger ? "Đã hết hạn" : `Còn ${proposal.expiresAtLedger - snapshot.latestLedger} ledger`,
-        proposer: nameFor(proposal.proposer),
-      } satisfies Proposal;});// Mỗi record được giải mã từ contract storage.
-      setOwnerAddresses(addresses);
-      setProposals(next);
-      setBalance(Number(snapshot.balance) / 10_000_000);
-      setLatestLedger(snapshot.latestLedger);
-      setActivity(next.flatMap((proposal) => proposal.approvals.map((actor) => ({
-        id: `chain-${proposal.id}-${actor}`,
-        actor,
-        action: "đã ký on-chain",
-        detail: `Đề xuất #${String(proposal.id).padStart(2, "0")}`,
-        time: proposal.created,
-      }))).slice(0, 8));
-      if (next.length) setSelectedId((current) => next.some((item) => item.id === current) ? current : next[0].id);
-      if (wallet) {
-        const connectedName = OWNER_NAMES.find((name) => addresses[name] === wallet);
-        if (connectedName) setViewer(connectedName);
-      }
+      const mapped = applyLiveSnapshot(snapshot);
+      setSession((current) => {
+        if (!current) return null;
+        const owner = OWNER_NAMES.find((name) => mapped.addresses[name] === current.address);
+        if (!owner) {
+          notify("Ví hiện tại không còn thuộc danh sách owner của contract");
+          return null;
+        }
+        return { ...current, owner };
+      });
     } catch (error) {
       notify(error instanceof Error ? error.message : "Không đồng bộ được Soroban RPC");
     } finally {
       setSyncing(false);
     }
-  }, [notify, wallet]);
+  }, [applyLiveSnapshot, notify]);
 
   useEffect(() => {
     if (!isChainConfigured) return;
@@ -136,201 +225,285 @@ export default function TreasuryApp() {
     return () => window.clearTimeout(timer);
   }, [syncChain]);
 
-  const active = proposals.find((proposal) => proposal.id === selectedId) ?? proposals[0] ?? INITIAL_PROPOSALS[0];
-  const waitingForViewer = proposals.filter((proposal) => proposal.status === "pending" && !proposal.approvals.includes(viewer));
+  useEffect(() => {
+    if (!isChainConfigured || !session) return;
+    let watcher: { stop: () => void } | undefined;
+    let cancelled = false;
+    void import("@stellar/freighter-api").then(({ WatchWalletChanges }) => {
+      if (cancelled) return;
+      watcher = new WatchWalletChanges(1200);
+      watcher.watch(({ address, networkPassphrase, error }) => {
+        if (error || !address) return;
+        if (address !== session.address || networkPassphrase !== Networks.TESTNET) {
+          setSession(null);
+          setModal(null);
+          notify("Freighter đã đổi tài khoản hoặc mạng. Hãy bấm Kết nối lại để xác minh owner mới.");
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      watcher?.stop();
+    };
+  }, [notify, session]);
+
+  const active = proposals.find((proposal) => proposal.id === selectedId) ?? proposals[0] ?? PREVIEW_PROPOSALS[0];
+  const waitingForCurrent = session
+    ? proposals.filter((proposal) => proposal.status === "pending" && !proposal.approvals.includes(session.owner))
+    : [];
   const visible = useMemo(() => proposals.filter((proposal) => {
-    if (filter === "mine") return proposal.status === "pending" && !proposal.approvals.includes(viewer);
+    if (filter === "mine") return Boolean(session) && proposal.status === "pending" && !proposal.approvals.includes(session!.owner);
     if (filter === "closed") return ["executed", "cancelled", "expired"].includes(proposal.status);
     return true;
-  }), [filter, proposals, viewer]);
+  }), [filter, proposals, session]);
 
-  const appendActivity = (actor: OwnerName, action: string, proposal: Proposal) => {
-    setActivity((items) => [{ id: `${Date.now()}`, actor, action, detail: `Đề xuất #${String(proposal.id).padStart(2, "0")}`, time: shortNow() }, ...items].slice(0, 8));
-  };
+  const requireLiveSession = useCallback((nextModal: "create" | "deposit" | "sign" | "execute") => {
+    if (!isChainConfigured) {
+      notify("Chế độ preview không thể tạo hoặc ký. Hãy deploy contract và cấu hình Contract ID trước.");
+      return;
+    }
+    if (!session) {
+      notify("Hãy kết nối đúng một trong ba ví owner bằng Freighter trước.");
+      return;
+    }
+    setModal(nextModal);
+  }, [notify, session]);
+
   async function connectWallet() {
+    if (!isChainConfigured) {
+      notify("Trang đang ở Preview chỉ đọc vì chưa có NEXT_PUBLIC_TREASURY_CONTRACT_ID");
+      return;
+    }
+    setSyncing(true);
     try {
-      const { requestAccess } = await import("@stellar/freighter-api");
-      const result = await requestAccess();
-      if (result.error) throw new Error(result.error.message || "Freighter từ chối kết nối");
-      if (isChainConfigured) {
-        let addresses = ownerAddresses;
-        if (OWNER_NAMES.some((name) => addresses[name].includes("..."))) {
-          const snapshot = await loadChainSnapshot();
-          addresses = Object.fromEntries(OWNER_NAMES.map((name, index) => [name, snapshot.owners[index]])) as Record<OwnerName, string>;
-          setOwnerAddresses(addresses);
-        }
-        const connectedName = OWNER_NAMES.find((name) => addresses[name] === result.address);
-        if (!connectedName) throw new Error("Ví này không nằm trong danh sách 3 owner của contract");
-        setViewer(connectedName);
+      const { getNetworkDetails, requestAccess } = await import("@stellar/freighter-api");
+      const access = await requestAccess();
+      if (access.error) throw new Error(access.error.message || "Freighter từ chối kết nối");
+      const network = await getNetworkDetails();
+      if (network.error) throw new Error(network.error.message || "Không đọc được mạng Freighter");
+      if (network.networkPassphrase !== Networks.TESTNET) {
+        throw new Error("Freighter đang ở sai mạng. Hãy chuyển sang Testnet rồi kết nối lại.");
       }
-      setWallet(result.address);
-      notify(isChainConfigured ? "Đã kết nối owner và đồng bộ Testnet" : "Đã kết nối Freighter trên Testnet");
+      const snapshot = await loadChainSnapshot();
+      const mapped = applyLiveSnapshot(snapshot);
+      const owner = OWNER_NAMES.find((name) => mapped.addresses[name] === access.address);
+      if (!owner) throw new Error("Ví này không thuộc ba owner của treasury contract");
+      setSession({ address: access.address, owner });
+      notify(`${owner} đã được xác minh bằng Freighter trên Testnet`);
     } catch (error) {
-      if (isChainConfigured) {
-        notify(error instanceof Error ? error.message : "Không kết nối được Freighter");
-      } else {
-        setWallet(ownerAddresses[viewer]);
-        notify(`Đang dùng ví demo của ${viewer}`);
-      }
+      setSession(null);
+      notify(error instanceof Error ? error.message : "Không kết nối được Freighter");
+    } finally {
+      setSyncing(false);
     }
   }
+
+  function disconnectSession() {
+    setSession(null);
+    setModal(null);
+    setFilter("all");
+    notify("Đã ngắt phiên trong DApp. Bạn có thể đổi tài khoản trong Freighter rồi kết nối lại.");
+  }
+
   async function confirmSign() {
-    if (!active || active.status !== "pending" || active.approvals.includes(viewer)) return;
-    if (isChainConfigured) {
-      if (!wallet || wallet !== ownerAddresses[viewer]) { notify(`Hãy kết nối đúng ví của ${viewer}`); return; }
-      setSyncing(true);
-      try {
-        await chainActions.approve(wallet, BigInt(active.id));
-        setModal(null); notify(`${viewer} đã ký trên Testnet`); await syncChain();
-      } catch (error) { notify(error instanceof Error ? error.message : "Ký thất bại"); }
-      finally { setSyncing(false); }
-      return;
+    if (!session || !isChainConfigured || active.status !== "pending" || active.approvals.includes(session.owner)) return;
+    setSyncing(true);
+    try {
+      await chainActions.approve(session.address, BigInt(active.id));
+      setModal(null);
+      notify(`${session.owner} đã ký proposal #${String(active.id).padStart(2, "0")} trên Testnet`);
+      await syncChain();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Ký transaction thất bại");
+    } finally {
+      setSyncing(false);
     }
-    const approvals = [...active.approvals, viewer];
-    const updated: Proposal = { ...active, approvals, status: approvals.length === 3 ? "ready" : "pending" };
-    setProposals((items) => items.map((item) => item.id === active.id ? updated : item));
-    appendActivity(viewer, "đã ký", updated);
-    setModal(null);
-    notify(approvals.length === 3 ? "Đã đủ 3/3 chữ ký — khoản chi sẵn sàng thực thi" : `${viewer} đã ký — còn ${3 - approvals.length} chữ ký`);
   }
+
   async function confirmExecute() {
-    if (!active || active.status !== "ready" || active.approvals.length !== 3) return;
-    if (isChainConfigured) {
-      if (!wallet || wallet !== ownerAddresses[viewer]) { notify(`Hãy kết nối đúng ví của ${viewer}`); return; }
-      setSyncing(true);
-      try {
-        await chainActions.execute(wallet, BigInt(active.id));
-        setModal(null); notify("Khoản chi đã được thực thi trên Testnet"); await syncChain();
-      } catch (error) { notify(error instanceof Error ? error.message : "Thực thi thất bại"); }
-      finally { setSyncing(false); }
-      return;
+    if (!session || !isChainConfigured || active.status !== "ready" || active.approvals.length !== 3) return;
+    setSyncing(true);
+    try {
+      await chainActions.execute(session.address, BigInt(active.id));
+      setModal(null);
+      notify("Khoản chi đã được thực thi trên Stellar Testnet");
+      await syncChain();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Thực thi transaction thất bại");
+    } finally {
+      setSyncing(false);
     }
-    const updated: Proposal = { ...active, status: "executed", expires: "Vừa thực thi", executedAt: `Hôm nay · ${shortNow()}` };
-    setProposals((items) => items.map((item) => item.id === active.id ? updated : item));
-    setBalance((value) => value - active.amount);
-    appendActivity(viewer, "đã thực thi", updated);
-    setModal(null);
-    notify("Khoản chi đã được mô phỏng xác nhận trên ledger");
   }
-  function resetDemo() {
-    if (isChainConfigured) { void syncChain(); return; }
-    setProposals(INITIAL_PROPOSALS); setBalance(1842.75); setActivity(INITIAL_ACTIVITY);
-    setSelectedId(4); localStorage.removeItem(STORAGE_KEY); notify("Đã khôi phục dữ liệu demo");
-  }
+
   async function submitProposal(data: Record<string, string>) {
-    if (isChainConfigured) {
-      if (!wallet || wallet !== ownerAddresses[viewer]) { notify(`Hãy kết nối đúng ví của ${viewer}`); return; }
-      const memo = `${data.title}: ${data.memo}`;
-      if (new TextEncoder().encode(memo).length > 160) { notify("Tiêu đề và mục đích vượt 160 UTF-8 bytes"); return; }
-      setSyncing(true);
-      try {
-        await chainActions.createProposal(wallet, data.recipient, data.amount, memo, latestLedger + 120_000);
-        setModal(null); notify("Đề xuất đã được tạo trên Testnet"); await syncChain();
-      } catch (error) { notify(error instanceof Error ? error.message : "Tạo đề xuất thất bại"); }
-      finally { setSyncing(false); }
+    if (!session || !isChainConfigured) return;
+    const memo = `${data.title}: ${data.memo}`;
+    if (new TextEncoder().encode(memo).length > 160) {
+      notify("Tiêu đề và mục đích vượt giới hạn 160 UTF-8 bytes");
       return;
     }
-    const proposal: Proposal = { id: Math.max(...proposals.map((p) => p.id)) + 1, title: data.title, memo: data.memo, recipient: data.recipient, amount: Number(data.amount), approvals: [viewer], status: "pending", created: "Hôm nay", expires: "Còn 7 ngày", proposer: viewer };
-    setProposals((items) => [proposal, ...items]); setSelectedId(proposal.id); appendActivity(viewer, "đã tạo", proposal); setModal(null); notify("Đã gửi đề xuất tới phòng ký của cả 3 thành viên");
+    setSyncing(true);
+    try {
+      await chainActions.createProposal(session.address, data.recipient, data.amount, memo, latestLedger + 120_000);
+      setModal(null);
+      notify("Đề xuất đã được tạo; chữ ký đầu tiên thuộc ví người tạo");
+      await syncChain();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Tạo đề xuất thất bại");
+    } finally {
+      setSyncing(false);
+    }
   }
+
   async function submitDeposit(amount: string) {
-    if (isChainConfigured) {
-      if (!wallet || wallet !== ownerAddresses[viewer]) { notify(`Hãy kết nối đúng ví của ${viewer}`); return; }
-      setSyncing(true);
-      try { await chainActions.deposit(wallet, amount); setModal(null); notify("Đã nạp XLM vào contract"); await syncChain(); }
-      catch (error) { notify(error instanceof Error ? error.message : "Nạp quỹ thất bại"); }
-      finally { setSyncing(false); }
-      return;
+    if (!session || !isChainConfigured) return;
+    setSyncing(true);
+    try {
+      await chainActions.deposit(session.address, amount);
+      setModal(null);
+      notify("Đã nạp XLM vào treasury contract");
+      await syncChain();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Nạp quỹ thất bại");
+    } finally {
+      setSyncing(false);
     }
-    setBalance((value) => value + Number(amount)); setModal(null); notify("Đã nạp quỹ ở chế độ demo");
   }
+
   async function copyRecipient() {
     try {
       await navigator.clipboard.writeText(active.recipient);
       notify("Đã sao chép địa chỉ người nhận");
     } catch {
-      notify("Không thể sao chép tự động trên trình duyệt này");
+      notify("Trình duyệt không cho phép sao chép tự động");
     }
   }
 
-  return <div className="treasury-app">
+  return <div className="treasury-app" id="top">
     <header className="topbar">
       <a className="brand" href="#top"><span className="brand-seal"><Landmark /></span><span><b>PDU</b><em>Treasury</em></span></a>
-      <nav className={navOpen ? "nav open" : "nav"}><a href="#overview">Tổng quan</a><a href="#proposals">Phòng ký</a><a href="#members">Thành viên</a><a href="#activity">Nhật ký</a></nav>
-      <div className="top-actions"><span className="network-pill"><i /> {isChainConfigured ? "TESTNET LIVE" : "TESTNET DEMO"}</span><button className="wallet-button" onClick={connectWallet}><Wallet />{wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Kết nối Freighter"}</button><button className="menu-button" onClick={() => setNavOpen(!navOpen)} aria-label="Mở menu"><Menu /></button></div>
+      <nav className={navOpen ? "nav open" : "nav"}>
+        <a href="#overview">Tổng quan</a><a href="#session">Phiên ký</a><a href="#proposals">Đề xuất</a><a href="#activity">Nhật ký</a>
+      </nav>
+      <div className="top-actions">
+        <span className={`network-pill ${isChainConfigured ? "live" : "preview"}`}><i />{isChainConfigured ? "TESTNET LIVE" : "READ-ONLY PREVIEW"}</span>
+        {session
+          ? <button className="wallet-button connected" onClick={disconnectSession}><BadgeCheck /><span>{session.owner}<small>{shortAddress(session.address)}</small></span><LogOut /></button>
+          : <button className="wallet-button" onClick={() => void connectWallet()} disabled={syncing}><Wallet />{syncing ? "Đang xác minh..." : "Kết nối Freighter"}</button>}
+        <button className="menu-button" onClick={() => setNavOpen(!navOpen)} aria-label="Mở menu"><Menu /></button>
+      </div>
     </header>
 
-    <main id="top">
+    <main>
       <section className="hero" id="overview">
-        <div className="hero-copy"><span className="eyebrow"><Sparkles /> Kho quỹ đồng thuận 3/3</span><h1>Một khoản chi.<br/><em>Ba người cùng quyết.</em></h1><p>Mọi đề xuất xuất hiện trong phòng ký của Alice, Bob và Carol. Chỉ khi cả ba xác nhận, contract mới cho phép giải ngân.</p><div className="hero-actions"><button onClick={() => setModal("create")}><FilePlus2 /> Tạo đề xuất</button><button className="ghost" onClick={() => document.querySelector("#proposals")?.scrollIntoView()}><Fingerprint /> Mở phòng ký</button></div></div>
-        <div className="consensus-card"><div className="consensus-head"><span>QUY TẮC THỰC THI</span><ShieldCheck /></div><strong>3<span>/3</span></strong><h2>Không đủ chữ ký,<br/>không thể chuyển tiền.</h2><div className="signature-route">{OWNER_NAMES.map((name, index) => <div key={name}><OwnerAvatar name={name}/><span>{name}<small>{OWNERS[name].role}</small></span>{index < 2 && <ArrowRight />}</div>)}</div><small className="contract-rule"><LockKeyhole /> `require_auth()` xác minh từng signer</small></div>
+        <div className="hero-copy">
+          <span className="eyebrow"><ShieldCheck /> Stellar Testnet · Unanimous treasury</span>
+          <h1>Ba ví độc lập.<br/><em>Một quyết định hợp lệ.</em></h1>
+          <p>Mỗi owner dùng tài khoản Freighter riêng. Proposal chỉ được mở khoá sau ba transaction xác nhận thật được contract ghi nhận on-chain.</p>
+          <div className="hero-actions">
+            <button onClick={() => requireLiveSession("create")}><FilePlus2 /> Tạo khoản chi</button>
+            <button className="ghost" onClick={() => document.querySelector("#proposals")?.scrollIntoView()}><Fingerprint /> Mở hồ sơ ký</button>
+          </div>
+        </div>
+        <div className="protocol-card">
+          <div className="protocol-top"><span>PROTOCOL / 03 SIGNERS</span><LockKeyhole /></div>
+          <div className="protocol-score"><strong>3</strong><i /><strong>3</strong></div>
+          <h2>Không đủ ba ví,<br/>không thể chuyển tiền.</h2>
+          <div className="protocol-route">{OWNER_NAMES.map((name, index) => <div key={name}><OwnerAvatar name={name}/><span><b>{OWNER_META[name].number}</b><small>{index === 0 ? "CREATE" : "APPROVE"}</small></span>{index < 2 && <ArrowRight />}</div>)}</div>
+          <small className="contract-rule"><Zap /> `require_auth()` xác minh đúng địa chỉ ở mỗi lần ký</small>
+        </div>
       </section>
 
-      <section className="overview-grid">
-        <article className="treasury-balance"><div className="card-label"><span>TÀI SẢN TRONG KHO</span><button aria-label="Làm mới" onClick={() => isChainConfigured ? void syncChain() : notify("Dữ liệu demo đã được làm mới")}><RefreshCw className={syncing ? "spin" : ""} /></button></div><div className="balance-value"><strong>{fmt(balance)}</strong><span>XLM</span></div><div className="balance-meta"><span>≈ {(balance * 6_450).toLocaleString("vi-VN")} ₫</span><span><i /> Native XLM SAC</span></div><div className="balance-buttons"><button onClick={() => setModal("deposit")}><ArrowDownToLine /> Nạp quỹ</button><button className="secondary" onClick={resetDemo}><RotateCcw className={syncing ? "spin" : ""} /> {isChainConfigured ? "Đồng bộ RPC" : "Khôi phục demo"}</button></div></article>
-        <div className="stat-grid"><article><span>Đang chờ chữ ký</span><strong>{proposals.filter((p) => p.status === "pending").length}</strong><small><Clock3 /> Trong phòng ký chung</small></article><article className="accent"><span>Việc của {viewer}</span><strong>{waitingForViewer.length}</strong><small><KeyRound /> Cần bạn xác nhận</small></article><article><span>Đã đủ đồng thuận</span><strong>{proposals.filter((p) => p.status === "ready").length}</strong><small><CheckCircle2 /> Có thể thực thi</small></article><article><span>Đã giải ngân</span><strong>{fmt(proposals.filter((p) => p.status === "executed").reduce((sum, p) => sum + p.amount, 0))}<b> XLM</b></strong><small><Activity /> Được ghi nhận</small></article></div>
+      {!isChainConfigured && <section className="configuration-banner">
+        <div><CircleAlert /><span><b>Frontend đang ở chế độ xem trước an toàn</b><small>Không có chữ ký giả, không thay đổi dữ liệu mẫu và không tạo transaction.</small></span></div>
+        <p>Deploy contract với ba địa chỉ G..., thêm <code>NEXT_PUBLIC_TREASURY_CONTRACT_ID</code>, rồi khởi động lại ứng dụng để bật luồng ký thật.</p>
+      </section>}
+
+      <section className="metrics-grid">
+        <article className="balance-card"><div><span>TÀI SẢN TREASURY</span><button onClick={() => void syncChain()} aria-label="Đồng bộ"><RefreshCw className={syncing ? "spin" : ""}/></button></div><strong>{fmt(balance)} <small>XLM</small></strong><footer><span><i />{isChainConfigured ? `Ledger ${latestLedger.toLocaleString("vi-VN")}` : "Dữ liệu minh hoạ"}</span><button onClick={() => requireLiveSession("deposit")}><ArrowDownToLine /> Nạp quỹ</button></footer></article>
+        <article><span>Đang chờ đủ chữ ký</span><strong>{proposals.filter((p) => p.status === "pending").length}</strong><small><Clock3 /> Yêu cầu chưa đạt 3/3</small></article>
+        <article><span>Sẵn sàng thực thi</span><strong>{proposals.filter((p) => p.status === "ready").length}</strong><small><CheckCircle2 /> Đã đồng thuận tuyệt đối</small></article>
+        <article><span>Việc của phiên hiện tại</span><strong>{session ? waitingForCurrent.length : "—"}</strong><small><KeyRound /> {session ? `${session.owner} chưa ký` : "Chưa kết nối owner"}</small></article>
       </section>
 
-      <section className="identity-switcher" id="members"><div><span className="section-label">{isChainConfigured ? "OWNER TỪ CONTRACT" : "PHIÊN LÀM VIỆC DEMO"}</span><h2>{isChainConfigured ? "Freighter quyết định bạn là ai." : "Bạn đang duyệt với tư cách ai?"}</h2><p>{isChainConfigured ? "Ba máy đọc chung proposal từ Soroban RPC; địa chỉ ví đang kết nối được đối chiếu với owner của contract." : "Đổi thành viên để kiểm tra đề xuất xuất hiện ở cả ba tài khoản."}</p></div><div className="owner-tabs">{OWNER_NAMES.map((name) => <button key={name} disabled={isChainConfigured} className={viewer === name ? "active" : ""} onClick={() => { setViewer(name); setWallet(""); }}><OwnerAvatar name={name}/><span>{name}<small>{ownerAddresses[name]}</small></span>{viewer === name && <CheckCircle2 />}</button>)}</div></section>
+      <section className="session-section" id="session">
+        <div className="session-copy"><span className="section-label">SIGNING SESSION</span><h2>Mỗi lần kết nối chỉ đại diện cho một ví.</h2><p>Muốn ký bằng owner tiếp theo, hãy đổi tài khoản trong Freighter, ngắt phiên DApp và kết nối lại. Website sẽ đối chiếu địa chỉ mới với danh sách owner trong contract.</p><ol><li><b>01</b><span>Owner đầu tiên tạo proposal<small>Contract tự ghi chữ ký 1/3 của người tạo.</small></span></li><li><b>02</b><span>Đổi sang ví owner tiếp theo<small>Mở cùng proposal và ký transaction approve.</small></span></li><li><b>03</b><span>Đạt 3/3 rồi thực thi<small>Một owner gửi transaction execute cuối cùng.</small></span></li></ol></div>
+        <div className={`session-console ${session ? "authenticated" : ""}`}>
+          <div className="console-head"><span>ACTIVE WALLET SESSION</span>{session ? <BadgeCheck /> : <Unplug />}</div>
+          {session ? <><div className="session-identity"><OwnerAvatar name={session.owner}/><span><small>ĐÃ XÁC MINH OWNER</small><strong>{session.owner}</strong><code>{session.address}</code></span></div><div className="session-network"><span><i />Stellar Testnet</span><span>Quyền ký: <b>1 ví</b></span></div><button className="disconnect-button" onClick={disconnectSession}><LogOut /> Ngắt phiên để đổi tài khoản</button></> : <><div className="empty-session"><Wallet /><strong>Chưa có owner được xác minh</strong><p>{isChainConfigured ? "Mở Freighter bằng một trong ba tài khoản owner rồi kết nối." : "Cần cấu hình Contract ID trước khi xác minh owner."}</p></div><button className="connect-large" onClick={() => void connectWallet()} disabled={!isChainConfigured || syncing}><Wallet /> Kết nối một ví Freighter <ArrowRight /></button></>}
+        </div>
+      </section>
+
+      <section className="owner-roster">
+        <div className="roster-heading"><span className="section-label">CONTRACT OWNER ROSTER</span><h2>Ba quyền ký tách biệt</h2><p>Danh sách này được đọc từ cấu hình contract và chỉ để đối chiếu — không phải nút chuyển vai trò.</p></div>
+        <div className="roster-grid">{OWNER_NAMES.map((name) => <article key={name} className={session?.owner === name ? "current" : ""}><header><span>{OWNER_META[name].number}</span>{session?.owner === name ? <BadgeCheck /> : <ShieldCheck />}</header><h3>{name}</h3><p>{OWNER_META[name].role}</p><code>{shortAddress(ownerAddresses[name])}</code><footer>{session?.owner === name ? <><i /> Phiên hiện tại</> : "Owner độc lập"}</footer></article>)}</div>
+      </section>
 
       <section className="signing-room" id="proposals">
-        <div className="proposal-panel"><div className="section-head"><div><span className="section-label">PHÒNG KÝ CHUNG</span><h2>Đề xuất ngân quỹ</h2></div><button className="new-proposal" onClick={() => setModal("create")}><Plus /> Tạo mới</button></div><div className="filters"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>Tất cả <b>{proposals.length}</b></button><button className={filter === "mine" ? "active" : ""} onClick={() => setFilter("mine")}>Chờ {viewer} ký <b>{waitingForViewer.length}</b></button><button className={filter === "closed" ? "active" : ""} onClick={() => setFilter("closed")}>Đã đóng</button></div>
-          <div className="proposal-list">{visible.map((proposal) => <button key={proposal.id} className={selectedId === proposal.id ? "proposal-row selected" : "proposal-row"} onClick={() => setSelectedId(proposal.id)}><span className={`status-dot ${proposal.status}`} /><span className="proposal-title"><b>#{String(proposal.id).padStart(2, "0")} · {proposal.title}</b><small>{proposal.recipient} · {proposal.created}</small></span><span className="mini-signatures">{OWNER_NAMES.map((name) => <i key={name} className={proposal.approvals.includes(name) ? "signed" : ""}>{proposal.approvals.includes(name) ? <Check /> : name[0]}</i>)}</span><span className="approval-count"><b>{proposal.approvals.length}/3</b><small>chữ ký</small></span><span className="proposal-value"><b>{fmt(proposal.amount)}</b><small>XLM</small></span><span className={`status-badge ${proposal.status}`}>{LABEL[proposal.status]}</span><ChevronRight /></button>)}</div>
+        <div className="proposal-panel">
+          <div className="section-head"><div><span className="section-label">SHARED SIGNING LEDGER</span><h2>Hồ sơ khoản chi</h2></div><button className="new-proposal" onClick={() => requireLiveSession("create")}><Plus /> Tạo mới</button></div>
+          <div className="filters"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>Tất cả <b>{proposals.length}</b></button><button disabled={!session} className={filter === "mine" ? "active" : ""} onClick={() => setFilter("mine")}>Chờ tôi ký <b>{waitingForCurrent.length}</b></button><button className={filter === "closed" ? "active" : ""} onClick={() => setFilter("closed")}>Đã đóng</button></div>
+          <div className="proposal-list">{visible.length ? visible.map((proposal) => <button key={proposal.id} className={selectedId === proposal.id ? "proposal-row selected" : "proposal-row"} onClick={() => setSelectedId(proposal.id)}><span className={`status-dot ${proposal.status}`} /><span className="proposal-title"><b>#{String(proposal.id).padStart(2, "0")} · {proposal.title}</b><small>{proposal.recipient} · {proposal.created}</small></span><span className="mini-signatures">{OWNER_NAMES.map((name) => <i key={name} className={proposal.approvals.includes(name) ? "signed" : ""}>{proposal.approvals.includes(name) ? <Check /> : OWNER_META[name].number}</i>)}</span><span className="approval-count"><b>{proposal.approvals.length}/3</b><small>chữ ký</small></span><span className="proposal-value"><b>{fmt(proposal.amount)}</b><small>XLM</small></span><span className={`status-badge ${proposal.status}`}>{LABEL[proposal.status]}</span><ChevronRight /></button>) : <div className="empty-list"><Fingerprint /><span>Không có proposal phù hợp bộ lọc.</span></div>}</div>
         </div>
 
         <aside className="approval-panel">
-          <div className="detail-kicker"><span>ĐỀ XUẤT #{String(active.id).padStart(2, "0")}</span><span className={`status-badge ${active.status}`}>{LABEL[active.status]}</span></div><h2>{active.title}</h2><p className="detail-memo">{active.memo}</p><div className="amount-callout"><span>Số tiền đề nghị</span><strong>{fmt(active.amount)} <small>XLM</small></strong></div><dl><div><dt>Người nhận</dt><dd>{active.recipient}<button className="copy-address" type="button" aria-label="Sao chép địa chỉ người nhận" onClick={copyRecipient}><Copy /></button></dd></div><div><dt>Người tạo</dt><dd>{active.proposer}</dd></div><div><dt>Thời hạn</dt><dd>{active.expires}</dd></div></dl>
-          <div className="approval-progress"><div><span>Tiến độ đồng thuận</span><b>{active.approvals.length}/3 chữ ký</b></div><div className="progress-track"><i style={{ width: `${active.approvals.length / 3 * 100}%` }} /></div></div>
-          <div className="signer-list">{OWNER_NAMES.map((name) => { const signed = active.approvals.includes(name); const current = viewer === name; return <div key={name} className={current ? "current" : ""}><OwnerAvatar name={name} signed={signed}/><span><b>{name}{current && <em>Bạn</em>}</b><small>{ownerAddresses[name]}</small></span><strong className={signed ? "signed-text" : "waiting-text"}>{signed ? "Đã ký" : "Chưa ký"}</strong></div>; })}</div>
-          <ApprovalAction proposal={active} viewer={viewer} openSign={() => setModal("sign")} openExecute={() => setModal("execute")} />
+          <div className="detail-kicker"><span>PROPOSAL / {String(active.id).padStart(2, "0")}</span><span className={`status-badge ${active.status}`}>{LABEL[active.status]}</span></div>
+          <h2>{active.title}</h2><p className="detail-memo">{active.memo}</p>
+          <div className="amount-callout"><span>SỐ TIỀN ĐỀ NGHỊ</span><strong>{fmt(active.amount)} <small>XLM</small></strong></div>
+          <dl><div><dt>Người nhận</dt><dd>{shortAddress(active.recipient)}<button className="copy-address" type="button" aria-label="Sao chép địa chỉ" onClick={() => void copyRecipient()}><Copy /></button></dd></div><div><dt>Người tạo</dt><dd>{active.proposer}</dd></div><div><dt>Thời hạn</dt><dd>{active.expires}</dd></div></dl>
+          <div className="approval-progress"><div><span>TIẾN ĐỘ ĐỒNG THUẬN</span><b>{active.approvals.length}/3 chữ ký</b></div><div className="progress-track"><i style={{ width: `${active.approvals.length / 3 * 100}%` }} /></div></div>
+          <div className="signer-list">{OWNER_NAMES.map((name) => { const signed = active.approvals.includes(name); const current = session?.owner === name; return <div key={name} className={current ? "current" : ""}><OwnerAvatar name={name} signed={signed}/><span><b>{name}{current && <em>Phiên này</em>}</b><small>{shortAddress(ownerAddresses[name])}</small></span><strong className={signed ? "signed-text" : "waiting-text"}>{signed ? "Đã ký" : "Chưa ký"}</strong></div>; })}</div>
+          <ApprovalAction proposal={active} session={session} configured={isChainConfigured} openSign={() => requireLiveSession("sign")} openExecute={() => requireLiveSession("execute")} />
         </aside>
       </section>
 
-      <section className="audit-section" id="activity"><div className="audit-copy"><span className="section-label">NHẬT KÝ MINH BẠCH</span><h2>Mỗi chữ ký để lại một dấu vết.</h2><p>{isChainConfigured ? `Dữ liệu được đọc từ contract tại ledger ${latestLedger.toLocaleString("vi-VN")}. Mỗi máy đều thấy cùng proposal và approval.` : "Giao diện demo đồng bộ cùng một trạng thái cho cả ba owner trên trình duyệt hiện tại. Điền Contract ID để chuyển sang Soroban RPC thật."}</p><div className="security-note"><ShieldCheck /><span>Frontend không lưu secret key. Freighter tạo và ký transaction trên thiết bị của từng thành viên.</span></div></div><div className="activity-feed">{activity.map((item) => <article key={item.id}><OwnerAvatar name={item.actor}/><span><b>{item.actor} {item.action}</b><small>{item.detail}</small></span><time>{item.time}</time></article>)}</div></section>
+      <section className="audit-section" id="activity"><div className="audit-copy"><span className="section-label">ON-CHAIN AUDIT TRAIL</span><h2>Mỗi chữ ký là một transaction riêng.</h2><p>Ba ví không chia sẻ secret key. Frontend chỉ dựng transaction; Freighter của từng owner mới là nơi người dùng kiểm tra và ký.</p><div className="security-note"><ShieldCheck /><span>Trạng thái chung nằm trong Soroban contract. Khi owner thứ hai hoặc thứ ba kết nối, họ đọc đúng proposal và các approval đã được ghi trước đó.</span></div></div><div className="activity-feed">{activity.map((item) => <article key={item.id}><OwnerAvatar name={item.actor}/><span><b>{item.actor} {item.action}</b><small>{item.detail}</small></span><time>{item.time}</time></article>)}</div></section>
     </main>
 
-    <footer><span>PDU Multisig Treasury</span><span>Soroban SDK 27 · 3/3 unanimous approval · Testnet</span><a href="https://developers.stellar.org/" target="_blank" rel="noreferrer">Stellar Docs <ExternalLink /></a></footer>
+    <footer className="site-footer"><span>PDU Multisig Treasury</span><span>Soroban · 3/3 unanimous approval · Testnet</span><a href="https://developers.stellar.org/" target="_blank" rel="noreferrer">Stellar Docs <ExternalLink /></a></footer>
 
-    {modal === "create" && <ProposalModal viewer={viewer} close={() => setModal(null)} submit={submitProposal} />}
+    {modal === "create" && session && <ProposalModal owner={session.owner} close={() => setModal(null)} submit={submitProposal} />}
     {modal === "deposit" && <DepositModal close={() => setModal(null)} submit={submitDeposit} />}
-    {modal === "sign" && <ConfirmModal kind="sign" proposal={active} viewer={viewer} close={() => setModal(null)} confirm={confirmSign} />}
-    {modal === "execute" && <ConfirmModal kind="execute" proposal={active} viewer={viewer} close={() => setModal(null)} confirm={confirmExecute} />}
-    {toast && <div className="toast"><CheckCircle2 />{toast}</div>}
+    {modal === "sign" && session && <ConfirmModal kind="sign" proposal={active} session={session} close={() => setModal(null)} confirm={() => void confirmSign()} />}
+    {modal === "execute" && session && <ConfirmModal kind="execute" proposal={active} session={session} close={() => setModal(null)} confirm={() => void confirmExecute()} />}
+    {toast && <div className="toast" role="status"><CheckCircle2 />{toast}</div>}
   </div>;
 }
 
 function OwnerAvatar({ name, signed = false }: { name: OwnerName; signed?: boolean }) {
-  return <i className={`owner-avatar ${OWNERS[name].tone} ${signed ? "signed" : ""}`}>{signed ? <Check /> : name[0]}</i>;
+  return <i className={`owner-avatar ${signed ? "signed" : ""}`}>{signed ? <Check /> : OWNER_META[name].number}</i>;
 }
 
-function ApprovalAction({ proposal, viewer, openSign, openExecute }: { proposal: Proposal; viewer: OwnerName; openSign: () => void; openExecute: () => void }) {
-  const viewerSigned = proposal.approvals.includes(viewer);
+function ApprovalAction({ proposal, session, configured, openSign, openExecute }: { proposal: Proposal; session: Session | null; configured: boolean; openSign: () => void; openExecute: () => void }) {
+  if (!configured) return <div className="action-state preview"><LockKeyhole /><span><b>Preview chỉ đọc</b><small>Cấu hình Contract ID để bật chữ ký thật.</small></span></div>;
+  if (!session) return <div className="action-state muted"><Wallet /><span><b>Chưa có phiên owner</b><small>Kết nối Freighter để kiểm tra quyền ký.</small></span></div>;
   if (proposal.status === "executed") return <div className="action-state success"><CheckCircle2 /><span><b>Khoản chi đã hoàn tất</b><small>{proposal.executedAt ?? "Đã xác nhận trên ledger"}</small></span></div>;
   if (["cancelled", "expired"].includes(proposal.status)) return <div className="action-state muted"><CircleAlert /><span><b>Đề xuất đã đóng</b><small>Không thể thêm chữ ký hoặc thực thi.</small></span></div>;
-  if (proposal.status === "ready") return <button className="approval-action execute" onClick={openExecute}><Fingerprint /><span><b>Thực thi khoản chi</b><small>Đủ 3/3 — ký transaction chuyển tiền</small></span><ArrowRight /></button>;
-  if (viewerSigned) return <div className="action-state signed"><CheckCircle2 /><span><b>{viewer} đã hoàn tất phần của mình</b><small>Đang chờ {3 - proposal.approvals.length} thành viên còn lại.</small></span></div>;
-  return <button className="approval-action" onClick={openSign}><KeyRound /><span><b>Ký với tư cách {viewer}</b><small>Xem lại rồi xác nhận chữ ký {proposal.approvals.length + 1}/3</small></span><ArrowRight /></button>;
+  if (proposal.status === "ready") return <button className="approval-action execute" onClick={openExecute}><Fingerprint /><span><b>Thực thi khoản chi</b><small>Đủ 3/3 — gửi transaction chuyển tiền</small></span><ArrowRight /></button>;
+  if (proposal.approvals.includes(session.owner)) return <div className="action-state signed"><CheckCircle2 /><span><b>Ví này đã ký</b><small>Đổi tài khoản Freighter để owner tiếp theo xác nhận.</small></span></div>;
+  return <button className="approval-action" onClick={openSign}><KeyRound /><span><b>Ký bằng {session.owner}</b><small>Freighter sẽ yêu cầu xác nhận transaction {proposal.approvals.length + 1}/3</small></span><ArrowRight /></button>;
 }
 
-function ProposalModal({ viewer, close, submit }: { viewer: OwnerName; close: () => void; submit: (data: Record<string, string>) => void }) {
+function ProposalModal({ owner, close, submit }: { owner: OwnerName; close: () => void; submit: (data: Record<string, string>) => void }) {
   const [data, setData] = useState({ title: "", memo: "", recipient: "", amount: "" });
-  const memoBytes = new TextEncoder().encode(data.memo).length;
-  return <ModalShell close={close}><form onSubmit={(event) => { event.preventDefault(); if (memoBytes <= 160) submit(data); }}><ModalHeader eyebrow={`Tạo bởi ${viewer}`} title="Tạo đề xuất ngân quỹ" close={close}/><div className="form-grid"><label className="full">Tên khoản chi<input required value={data.title} onChange={(e) => setData({ ...data, title: e.target.value })} placeholder="Ví dụ: Tài trợ cuộc thi sinh viên" /></label><label>Người nhận<input required value={data.recipient} onChange={(e) => setData({ ...data, recipient: e.target.value })} placeholder="Địa chỉ G..." /></label><label>Số lượng XLM<input required min="0.0000001" step="0.0000001" type="number" value={data.amount} onChange={(e) => setData({ ...data, amount: e.target.value })} placeholder="0" /></label><label className="full">Mục đích<textarea required value={data.memo} onChange={(e) => setData({ ...data, memo: e.target.value })} placeholder="Giải thích khoản chi cho hai thành viên còn lại..." /><small className={memoBytes > 160 ? "over" : ""}>{memoBytes}/160 UTF-8 bytes</small></label></div><div className="modal-rule"><Users /><span>Đề xuất sẽ xuất hiện cho Alice, Bob và Carol. {viewer} tự ký chữ ký đầu tiên khi tạo.</span></div><button className="modal-submit" disabled={memoBytes > 160}>Đưa vào phòng ký <ArrowRight /></button></form></ModalShell>;
+  const totalBytes = new TextEncoder().encode(`${data.title}: ${data.memo}`).length;
+  return <ModalShell close={close}><form onSubmit={(event) => { event.preventDefault(); if (totalBytes <= 160) void submit(data); }}><ModalHeader eyebrow={`Phiên đã xác minh · ${owner}`} title="Tạo khoản chi mới" close={close}/><div className="form-grid"><label className="full">Tên khoản chi<input required value={data.title} onChange={(event) => setData({ ...data, title: event.target.value })} placeholder="Ví dụ: Tài trợ cuộc thi sinh viên" /></label><label>Người nhận<input required pattern="G[A-Z2-7]{55}" value={data.recipient} onChange={(event) => setData({ ...data, recipient: event.target.value })} placeholder="Địa chỉ G..." /></label><label>Số lượng XLM<input required min="0.0000001" step="0.0000001" type="number" value={data.amount} onChange={(event) => setData({ ...data, amount: event.target.value })} placeholder="0" /></label><label className="full">Mục đích<textarea required value={data.memo} onChange={(event) => setData({ ...data, memo: event.target.value })} placeholder="Giải thích khoản chi cho hai owner còn lại..."/><small className={totalBytes > 160 ? "over" : ""}>{totalBytes}/160 UTF-8 bytes (gồm tiêu đề)</small></label></div><div className="modal-rule"><Users /><span>Contract tự ghi chữ ký 1/3 của ví đang tạo. Hai owner còn lại phải kết nối bằng tài khoản riêng và ký sau.</span></div><button className="modal-submit" disabled={totalBytes > 160}>Tạo và ký 1/3 <ArrowRight /></button></form></ModalShell>;
 }
 
 function DepositModal({ close, submit }: { close: () => void; submit: (amount: string) => void }) {
   const [amount, setAmount] = useState("");
-  return <ModalShell close={close}><form onSubmit={(event) => { event.preventDefault(); submit(amount); }}><ModalHeader eyebrow="Native XLM · SAC" title="Nạp tài sản vào kho" close={close}/><label>Số lượng XLM<input required min="0.0000001" step="0.0000001" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" /></label><div className="modal-rule"><ShieldCheck /><span>Ở Testnet thật, Freighter sẽ yêu cầu ký transaction nạp tiền.</span></div><button className="modal-submit">Xác nhận nạp quỹ <ArrowRight /></button></form></ModalShell>;
+  return <ModalShell close={close}><form onSubmit={(event) => { event.preventDefault(); void submit(amount); }}><ModalHeader eyebrow="Native XLM · Stellar Asset Contract" title="Nạp tài sản vào treasury" close={close}/><label>Số lượng XLM<input required min="0.0000001" step="0.0000001" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" /></label><div className="modal-rule"><ShieldCheck /><span>Freighter sẽ hiển thị transaction Testnet trước khi bạn ký.</span></div><button className="modal-submit">Mở Freighter để xác nhận <ArrowRight /></button></form></ModalShell>;
 }
 
-function ConfirmModal({ kind, proposal, viewer, close, confirm }: { kind: "sign" | "execute"; proposal: Proposal; viewer: OwnerName; close: () => void; confirm: () => void }) {
+function ConfirmModal({ kind, proposal, session, close, confirm }: { kind: "sign" | "execute"; proposal: Proposal; session: Session; close: () => void; confirm: () => void }) {
   const [checked, setChecked] = useState(false);
-  return <ModalShell close={close}><div><ModalHeader eyebrow={kind === "sign" ? `Chữ ký ${proposal.approvals.length + 1}/3` : "Đủ đồng thuận 3/3"} title={kind === "sign" ? `Xác nhận với tư cách ${viewer}` : "Thực thi khoản chi"} close={close}/><div className="confirm-summary"><span>Đề xuất #{String(proposal.id).padStart(2, "0")}</span><h3>{proposal.title}</h3><strong>{fmt(proposal.amount)} <small>XLM</small></strong><p>Người nhận: {proposal.recipient}</p></div><label className="confirm-check" htmlFor="confirm-review"><input id="confirm-review" aria-label="Xác nhận đã kiểm tra đề xuất" type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} /><span><b>Tôi đã kiểm tra người nhận, số tiền và mục đích.</b><small>{kind === "sign" ? "Chữ ký của tôi sẽ không thể lặp lại." : "Thao tác này sẽ chuyển tài sản khỏi kho quỹ."}</small></span></label><div className="modal-rule"><Fingerprint /><span>Freighter sẽ hiển thị nội dung transaction trước khi ký khi kết nối Testnet thật.</span></div><button className="modal-submit" disabled={!checked} onClick={confirm}>{kind === "sign" ? `Ký xác nhận ${proposal.approvals.length + 1}/3` : "Ký và thực thi"}<ArrowRight /></button></div></ModalShell>;
+  return <ModalShell close={close}><div><ModalHeader eyebrow={kind === "sign" ? `Approval ${proposal.approvals.length + 1}/3 · ${session.owner}` : "Unanimous approval · 3/3"} title={kind === "sign" ? "Ký xác nhận khoản chi" : "Thực thi khoản chi"} close={close}/><div className="confirm-identity"><OwnerAvatar name={session.owner}/><span><small>VÍ SẼ KÝ TRANSACTION</small><b>{session.owner}</b><code>{shortAddress(session.address)}</code></span></div><div className="confirm-summary"><span>PROPOSAL #{String(proposal.id).padStart(2, "0")}</span><h3>{proposal.title}</h3><strong>{fmt(proposal.amount)} <small>XLM</small></strong><p>Người nhận: {shortAddress(proposal.recipient)}</p></div><label className="confirm-check" htmlFor="confirm-review"><input id="confirm-review" aria-label="Xác nhận đã kiểm tra đề xuất" type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} /><span><b>Tôi đã kiểm tra người nhận, số tiền và mục đích.</b><small>{kind === "sign" ? "Chữ ký của địa chỉ này chỉ được ghi một lần." : "Transaction này sẽ chuyển tài sản khỏi treasury."}</small></span></label><div className="modal-rule"><Fingerprint /><span>Hãy kiểm tra lại chính địa chỉ đang mở trong cửa sổ Freighter trước khi chấp nhận.</span></div><button className="modal-submit" disabled={!checked} onClick={confirm}>{kind === "sign" ? `Mở Freighter và ký ${proposal.approvals.length + 1}/3` : "Ký và thực thi"}<ArrowRight /></button></div></ModalShell>;
 }
 
 function ModalShell({ children, close }: { children: React.ReactNode; close: () => void }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}><div className="modal-card" role="dialog" aria-modal="true">{children}</div></div>;
 }
+
 function ModalHeader({ eyebrow, title, close }: { eyebrow: string; title: string; close: () => void }) {
   return <div className="modal-header"><div><span>{eyebrow}</span><h2>{title}</h2></div><button onClick={close} type="button" aria-label="Đóng"><X /></button></div>;
 }
