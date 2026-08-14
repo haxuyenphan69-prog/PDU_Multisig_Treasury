@@ -60,6 +60,11 @@ const PREVIEW_ADDRESSES: Record<OwnerName, string> = {
   "Owner 02": "GC7BW...P3AA",
   "Owner 03": "GB3PH...09KD",
 };
+const EMPTY_ADDRESSES: Record<OwnerName, string> = {
+  "Owner 01": "",
+  "Owner 02": "",
+  "Owner 03": "",
+};
 const PREVIEW_PROPOSALS: Proposal[] = [
   {
     id: 4,
@@ -163,12 +168,12 @@ function mapSnapshot(snapshot: ChainSnapshot) {
 }
 
 export default function TreasuryApp() {
-  const [proposals, setProposals] = useState<Proposal[]>(PREVIEW_PROPOSALS);
-  const [ownerAddresses, setOwnerAddresses] = useState(PREVIEW_ADDRESSES);
-  const [activity, setActivity] = useState<ActivityItem[]>(PREVIEW_ACTIVITY);
-  const [balance, setBalance] = useState(1842.75);
+  const [proposals, setProposals] = useState<Proposal[]>(isChainConfigured ? [] : PREVIEW_PROPOSALS);
+  const [ownerAddresses, setOwnerAddresses] = useState(isChainConfigured ? EMPTY_ADDRESSES : PREVIEW_ADDRESSES);
+  const [activity, setActivity] = useState<ActivityItem[]>(isChainConfigured ? [] : PREVIEW_ACTIVITY);
+  const [balance, setBalance] = useState(isChainConfigured ? 0 : 1842.75);
   const [latestLedger, setLatestLedger] = useState(0);
-  const [selectedId, setSelectedId] = useState(4);
+  const [selectedId, setSelectedId] = useState(isChainConfigured ? 0 : 4);
   const [session, setSession] = useState<Session | null>(null);
   const [filter, setFilter] = useState<"all" | "mine" | "closed">("all");
   const [modal, setModal] = useState<"create" | "deposit" | "sign" | "execute" | null>(null);
@@ -247,7 +252,7 @@ export default function TreasuryApp() {
     };
   }, [notify, session]);
 
-  const active = proposals.find((proposal) => proposal.id === selectedId) ?? proposals[0] ?? PREVIEW_PROPOSALS[0];
+  const active = proposals.find((proposal) => proposal.id === selectedId) ?? proposals[0] ?? (isChainConfigured ? undefined : PREVIEW_PROPOSALS[0]);
   const waitingForCurrent = session
     ? proposals.filter((proposal) => proposal.status === "pending" && !proposal.approvals.includes(session.owner))
     : [];
@@ -306,7 +311,7 @@ export default function TreasuryApp() {
   }
 
   async function confirmSign() {
-    if (!session || !isChainConfigured || active.status !== "pending" || active.approvals.includes(session.owner)) return;
+    if (!session || !active || !isChainConfigured || active.status !== "pending" || active.approvals.includes(session.owner)) return;
     setSyncing(true);
     try {
       await chainActions.approve(session.address, BigInt(active.id));
@@ -321,7 +326,7 @@ export default function TreasuryApp() {
   }
 
   async function confirmExecute() {
-    if (!session || !isChainConfigured || active.status !== "ready" || active.approvals.length !== 3) return;
+    if (!session || !active || !isChainConfigured || active.status !== "ready" || active.approvals.length !== 3) return;
     setSyncing(true);
     try {
       await chainActions.execute(session.address, BigInt(active.id));
@@ -371,6 +376,7 @@ export default function TreasuryApp() {
   }
 
   async function copyRecipient() {
+    if (!active) return;
     try {
       await navigator.clipboard.writeText(active.recipient);
       notify("Đã sao chép địa chỉ người nhận");
@@ -447,6 +453,7 @@ export default function TreasuryApp() {
         </div>
 
         <aside className="approval-panel">
+          {active ? <>
           <div className="detail-kicker"><span>PROPOSAL / {String(active.id).padStart(2, "0")}</span><span className={`status-badge ${active.status}`}>{LABEL[active.status]}</span></div>
           <h2>{active.title}</h2><p className="detail-memo">{active.memo}</p>
           <div className="amount-callout"><span>SỐ TIỀN ĐỀ NGHỊ</span><strong>{fmt(active.amount)} <small>XLM</small></strong></div>
@@ -454,6 +461,7 @@ export default function TreasuryApp() {
           <div className="approval-progress"><div><span>TIẾN ĐỘ ĐỒNG THUẬN</span><b>{active.approvals.length}/3 chữ ký</b></div><div className="progress-track"><i style={{ width: `${active.approvals.length / 3 * 100}%` }} /></div></div>
           <div className="signer-list">{OWNER_NAMES.map((name) => { const signed = active.approvals.includes(name); const current = session?.owner === name; return <div key={name} className={current ? "current" : ""}><OwnerAvatar name={name} signed={signed}/><span><b>{name}{current && <em>Phiên này</em>}</b><small>{shortAddress(ownerAddresses[name])}</small></span><strong className={signed ? "signed-text" : "waiting-text"}>{signed ? "Đã ký" : "Chưa ký"}</strong></div>; })}</div>
           <ApprovalAction proposal={active} session={session} configured={isChainConfigured} openSign={() => requireLiveSession("sign")} openExecute={() => requireLiveSession("execute")} />
+          </> : <div className="empty-list"><Fingerprint /><span>Chưa có proposal on-chain. Kết nối owner rồi tạo khoản chi đầu tiên.</span></div>}
         </aside>
       </section>
 
@@ -464,8 +472,8 @@ export default function TreasuryApp() {
 
     {modal === "create" && session && <ProposalModal owner={session.owner} close={() => setModal(null)} submit={submitProposal} />}
     {modal === "deposit" && <DepositModal close={() => setModal(null)} submit={submitDeposit} />}
-    {modal === "sign" && session && <ConfirmModal kind="sign" proposal={active} session={session} close={() => setModal(null)} confirm={() => void confirmSign()} />}
-    {modal === "execute" && session && <ConfirmModal kind="execute" proposal={active} session={session} close={() => setModal(null)} confirm={() => void confirmExecute()} />}
+    {modal === "sign" && session && active && <ConfirmModal kind="sign" proposal={active} session={session} close={() => setModal(null)} confirm={() => void confirmSign()} />}
+    {modal === "execute" && session && active && <ConfirmModal kind="execute" proposal={active} session={session} close={() => setModal(null)} confirm={() => void confirmExecute()} />}
     {toast && <div className="toast" role="status"><CheckCircle2 />{toast}</div>}
   </div>;
 }
