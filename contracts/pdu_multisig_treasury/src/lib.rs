@@ -205,18 +205,15 @@ impl PduMultisigTreasury {
             recipient: recipient.clone(),
             amount,
             memo,
-            approval_count: 1,
+            approval_count: 0,
             created_at_ledger: current_ledger,
             expires_at_ledger,
             status: ProposalStatus::Pending,
         };
         let proposal_key = DataKey::Proposal(id);
-        let approval_key = DataKey::Approval(id, proposer.clone());
         env.storage().persistent().set(&proposal_key, &proposal);
-        env.storage().persistent().set(&approval_key, &true);
         env.storage().instance().set(&DataKey::Config, &config);
         bump_proposal_ttl(&env, &proposal_key);
-        bump_approval_ttl(&env, &approval_key);
         bump_instance_ttl(&env);
         ProposalCreated {
             proposal_id: id,

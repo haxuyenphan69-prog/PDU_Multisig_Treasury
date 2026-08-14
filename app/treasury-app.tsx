@@ -79,7 +79,7 @@ const PREVIEW_PROPOSALS: Proposal[] = [
     memo: "Chi phí hạ tầng ba tháng cho cổng sinh viên.",
     recipient: "GBH8K...7R2P",
     amount: 85.5,
-    approvals: ["Owner 03"],
+    approvals: [],
     status: "pending",
     created: "12 Thg 8",
     expires: "Còn 3 ngày",
@@ -346,7 +346,7 @@ export default function TreasuryApp() {
     try {
       await chainActions.createProposal(session.address, data.recipient, data.amount, memo, latestLedger + 120_000);
       setModal(null);
-      notify("Đề xuất đã được tạo; chữ ký đầu tiên thuộc ví người tạo");
+      notify("Đề xuất đã được tạo ở trạng thái 0/3; từng owner phải mở và xác nhận riêng");
       await syncChain();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Tạo đề xuất thất bại");
@@ -427,7 +427,7 @@ export default function TreasuryApp() {
       </section>
 
       <section className="session-section" id="session">
-        <div className="session-copy"><span className="section-label">SIGNING SESSION</span><h2>Mỗi lần kết nối chỉ đại diện cho một ví.</h2><p>Muốn ký bằng owner tiếp theo, hãy đổi tài khoản trong Freighter, ngắt phiên DApp và kết nối lại. Website sẽ đối chiếu địa chỉ mới với danh sách owner trong contract.</p><ol><li><b>01</b><span>Owner đầu tiên tạo proposal<small>Contract tự ghi chữ ký 1/3 của người tạo.</small></span></li><li><b>02</b><span>Đổi sang ví owner tiếp theo<small>Mở cùng proposal và ký transaction approve.</small></span></li><li><b>03</b><span>Đạt 3/3 rồi thực thi<small>Một owner gửi transaction execute cuối cùng.</small></span></li></ol></div>
+        <div className="session-copy"><span className="section-label">SIGNING SESSION</span><h2>Mỗi lần kết nối chỉ đại diện cho một ví.</h2><p>Proposal mới luôn bắt đầu ở 0/3. Mỗi owner phải kết nối Freighter, mở đúng khoản chi và chủ động bấm xác nhận; chỉ transaction approve thành công mới được tính là một chữ ký.</p><ol><li><b>01</b><span>Tạo proposal ở trạng thái 0/3<small>Người tạo chưa được tính là đã xác nhận.</small></span></li><li><b>02</b><span>Từng owner mở khoản chi và ký<small>Mỗi tài khoản chỉ được tăng đúng một approval.</small></span></li><li><b>03</b><span>Đạt 3/3 rồi thực thi<small>Một owner gửi transaction execute cuối cùng.</small></span></li></ol></div>
         <div className={`session-console ${session ? "authenticated" : ""}`}>
           <div className="console-head"><span>ACTIVE WALLET SESSION</span>{session ? <BadgeCheck /> : <Unplug />}</div>
           {session ? <><div className="session-identity"><OwnerAvatar name={session.owner}/><span><small>ĐÃ XÁC MINH OWNER</small><strong>{session.owner}</strong><code>{session.address}</code></span></div><div className="session-network"><span><i />Stellar Testnet</span><span>Quyền ký: <b>1 ví</b></span></div><button className="disconnect-button" onClick={disconnectSession}><LogOut /> Ngắt phiên để đổi tài khoản</button></> : <><div className="empty-session"><Wallet /><strong>Chưa có owner được xác minh</strong><p>{isChainConfigured ? "Mở Freighter bằng một trong ba tài khoản owner rồi kết nối." : "Cần cấu hình Contract ID trước khi xác minh owner."}</p></div><button className="connect-large" onClick={() => void connectWallet()} disabled={!isChainConfigured || syncing}><Wallet /> Kết nối một ví Freighter <ArrowRight /></button></>}
@@ -487,7 +487,7 @@ function ApprovalAction({ proposal, session, configured, openSign, openExecute }
 function ProposalModal({ owner, close, submit }: { owner: OwnerName; close: () => void; submit: (data: Record<string, string>) => void }) {
   const [data, setData] = useState({ title: "", memo: "", recipient: "", amount: "" });
   const totalBytes = new TextEncoder().encode(`${data.title}: ${data.memo}`).length;
-  return <ModalShell close={close}><form onSubmit={(event) => { event.preventDefault(); if (totalBytes <= 160) void submit(data); }}><ModalHeader eyebrow={`Phiên đã xác minh · ${owner}`} title="Tạo khoản chi mới" close={close}/><div className="form-grid"><label className="full">Tên khoản chi<input required value={data.title} onChange={(event) => setData({ ...data, title: event.target.value })} placeholder="Ví dụ: Tài trợ cuộc thi sinh viên" /></label><label>Người nhận<input required pattern="G[A-Z2-7]{55}" value={data.recipient} onChange={(event) => setData({ ...data, recipient: event.target.value })} placeholder="Địa chỉ G..." /></label><label>Số lượng XLM<input required min="0.0000001" step="0.0000001" type="number" value={data.amount} onChange={(event) => setData({ ...data, amount: event.target.value })} placeholder="0" /></label><label className="full">Mục đích<textarea required value={data.memo} onChange={(event) => setData({ ...data, memo: event.target.value })} placeholder="Giải thích khoản chi cho hai owner còn lại..."/><small className={totalBytes > 160 ? "over" : ""}>{totalBytes}/160 UTF-8 bytes (gồm tiêu đề)</small></label></div><div className="modal-rule"><Users /><span>Contract tự ghi chữ ký 1/3 của ví đang tạo. Hai owner còn lại phải kết nối bằng tài khoản riêng và ký sau.</span></div><button className="modal-submit" disabled={totalBytes > 160}>Tạo và ký 1/3 <ArrowRight /></button></form></ModalShell>;
+  return <ModalShell close={close}><form onSubmit={(event) => { event.preventDefault(); if (totalBytes <= 160) void submit(data); }}><ModalHeader eyebrow={`Người tạo · ${owner}`} title="Tạo khoản chi mới" close={close}/><div className="form-grid"><label className="full">Tên khoản chi<input required value={data.title} onChange={(event) => setData({ ...data, title: event.target.value })} placeholder="Ví dụ: Tài trợ cuộc thi sinh viên" /></label><label>Người nhận<input required pattern="G[A-Z2-7]{55}" value={data.recipient} onChange={(event) => setData({ ...data, recipient: event.target.value })} placeholder="Địa chỉ G..." /></label><label>Số lượng XLM<input required min="0.0000001" step="0.0000001" type="number" value={data.amount} onChange={(event) => setData({ ...data, amount: event.target.value })} placeholder="0" /></label><label className="full">Mục đích<textarea required value={data.memo} onChange={(event) => setData({ ...data, memo: event.target.value })} placeholder="Giải thích khoản chi cho ba owner xem xét..."/><small className={totalBytes > 160 ? "over" : ""}>{totalBytes}/160 UTF-8 bytes (gồm tiêu đề)</small></label></div><div className="modal-rule"><Users /><span>Tạo proposal không đồng nghĩa với phê duyệt. Khoản chi sẽ bắt đầu ở 0/3; mỗi owner phải mở hồ sơ và bấm xác nhận bằng ví riêng.</span></div><button className="modal-submit" disabled={totalBytes > 160}>Tạo proposal 0/3 <ArrowRight /></button></form></ModalShell>;
 }
 
 function DepositModal({ close, submit }: { close: () => void; submit: (amount: string) => void }) {

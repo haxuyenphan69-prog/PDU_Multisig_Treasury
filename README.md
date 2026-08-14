@@ -8,10 +8,11 @@
 
 Ứng dụng không có nút giả lập chuyển vai trò. Danh tính hiện tại luôn được lấy từ đúng địa chỉ ví Freighter đang kết nối:
 
-1. **Owner 01** mở Freighter bằng tài khoản thứ nhất, kết nối DApp và tạo proposal. Contract tự ghi approval 1/3 của người tạo.
-2. Owner 01 ngắt phiên trong DApp. Người dùng đổi sang tài khoản **Owner 02** trong Freighter, kết nối lại và ký proposal thành 2/3.
-3. Tiếp tục đổi sang tài khoản **Owner 03**, kết nối lại và ký approval 3/3.
-4. Khi proposal đạt 3/3, một owner kết nối có thể gửi transaction `execute` cuối cùng để chuyển XLM.
+1. Một owner kết nối Freighter và tạo proposal. Contract lưu proposal ở trạng thái **0/3**, chưa tính người tạo là đã xác nhận.
+2. **Owner 01** kết nối ví, mở đúng khoản chi và bấm xác nhận để proposal thành 1/3.
+3. Đổi sang **Owner 02**, kết nối lại, mở cùng khoản chi và xác nhận thành 2/3.
+4. Đổi sang **Owner 03**, kết nối lại và xác nhận approval 3/3.
+5. Khi proposal đạt 3/3, một owner kết nối có thể gửi transaction `execute` cuối cùng để chuyển XLM.
 
 Mỗi lần kết nối, frontend kiểm tra:
 
@@ -112,9 +113,9 @@ Không commit secret key, seed phrase hoặc file `.env.local`.
 
 1. Import hoặc tạo ba tài khoản Testnet riêng trong Freighter; public address phải trùng cấu hình contract.
 2. Chọn Owner 01 trong Freighter, đặt mạng Testnet, kết nối DApp và tạo proposal.
-3. Kiểm tra proposal hiển thị 1/3. Ngắt phiên DApp.
-4. Chuyển Freighter sang Owner 02, kết nối lại, mở cùng proposal và ký. Ở 2/3 vẫn chưa thể thực thi.
-5. Chuyển Freighter sang Owner 03, kết nối lại và ký. Kiểm tra trạng thái 3/3.
+3. Kiểm tra proposal mới hiển thị 0/3. Mở proposal và bấm xác nhận bằng Owner 01 để thành 1/3.
+4. Chuyển Freighter sang Owner 02, kết nối lại, mở cùng proposal và xác nhận thành 2/3. Ở bước này vẫn chưa thể thực thi.
+5. Chuyển Freighter sang Owner 03, kết nối lại, mở proposal và xác nhận. Kiểm tra trạng thái 3/3.
 6. Gửi transaction thực thi. Kiểm tra balance giảm đúng amount và proposal chuyển sang `Executed`.
 7. Thử ví không thuộc owner; DApp phải từ chối quyền ký.
 8. Thử ký lặp bằng cùng owner; contract phải từ chối.
@@ -125,7 +126,7 @@ Không commit secret key, seed phrase hoặc file `.env.local`.
 |---|---|
 | `__constructor` | Lưu ba owner, threshold 3 và token |
 | `deposit` | Chuyển XLM SAC vào treasury |
-| `create_proposal` | Tạo proposal; proposer tự approve |
+| `create_proposal` | Tạo proposal ở trạng thái 0/3, không tự approve |
 | `approve` | Owner ký đúng một lần bằng `require_auth()` |
 | `cancel_proposal` | Proposer huỷ trước khi đủ threshold |
 | `execute` | Chuyển XLM khi đủ 3/3 approval |

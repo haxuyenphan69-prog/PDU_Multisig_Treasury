@@ -105,7 +105,7 @@ fn deposit_rejects_non_positive_amount() {
 }
 
 #[test]
-fn proposal_creation_auto_approves_proposer_and_counts_utf8_bytes() {
+fn proposal_creation_starts_at_zero_approvals_and_counts_utf8_bytes() {
     let f = fixture();
     let expires = f.env.ledger().sequence() + 100;
     let memo = String::from_str(&f.env, "Thanh toan CLB lap trinh");
@@ -114,9 +114,9 @@ fn proposal_creation_auto_approves_proposer_and_counts_utf8_bytes() {
         .create_proposal(&f.alice, &f.david, &10_000_000, &memo, &expires);
     let proposal = f.client.get_proposal(&id);
     assert_eq!(id, 0);
-    assert_eq!(proposal.approval_count, 1);
+    assert_eq!(proposal.approval_count, 0);
     assert_eq!(proposal.status, ProposalStatus::Pending);
-    assert!(f.client.has_approved(&id, &f.alice));
+    assert!(!f.client.has_approved(&id, &f.alice));
     assert_eq!(f.client.get_proposal_count(), 1);
 }
 
@@ -145,6 +145,7 @@ fn all_three_owners_must_approve_and_duplicates_are_rejected() {
         &String::from_str(&f.env, "Hoc bong hackathon"),
         &expires,
     );
+    assert_eq!(f.client.approve(&f.alice, &id), 1);
     assert_eq!(f.client.approve(&f.bob, &id), 2);
     assert!(!f.client.is_executable(&id));
     assert_eq!(
@@ -187,6 +188,11 @@ fn execute_transfers_once_after_threshold() {
         &String::from_str(&f.env, "Tai tro su kien sinh vien"),
         &expires,
     );
+    assert_eq!(
+        f.client.try_execute(&f.alice, &id),
+        Err(Ok(Error::NotEnoughApprovals))
+    );
+    f.client.approve(&f.alice, &id);
     assert_eq!(
         f.client.try_execute(&f.alice, &id),
         Err(Ok(Error::NotEnoughApprovals))
@@ -241,6 +247,7 @@ fn insufficient_balance_does_not_change_status() {
         &expires,
     );
     f.client.approve(&f.bob, &id);
+    f.client.approve(&f.alice, &id);
     f.client.approve(&f.carol, &id);
     assert_eq!(
         f.client.try_execute(&f.carol, &id),
