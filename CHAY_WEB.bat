@@ -17,11 +17,25 @@ if not exist "node_modules" (
   if errorlevel 1 goto :fail
 )
 
+REM Do not silently fall back to localhost:3001. That almost always means an
+REM older copy of the project is still running on port 3000.
+powershell -NoProfile -Command "if (Get-NetTCPConnection -State Listen -LocalPort 3000 -ErrorAction SilentlyContinue) { exit 1 } else { exit 0 }" >nul 2>nul
+if errorlevel 1 (
+  echo.
+  echo [DUNG LAI] Cong 3000 dang duoc mot chuong trinh khac su dung.
+  echo Khong mo localhost:3001, vi do co the la giao dien cua ban cu.
+  echo.
+  echo Hay dong Terminal dang chay web cu, sau do chay lai file nay.
+  echo Neu ban dang chay dung project moi o cong 3000, mo: http://localhost:3000
+  pause
+  exit /b 1
+)
+
 echo.
 echo PDU Treasury dang khoi dong tai http://localhost:3000
 echo Trinh duyet se mo sau vai giay. Khong dong cua so nay khi dang dung web.
 start "" cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:3000"
-call npm run dev
+call npm run dev -- --port 3000 --strictPort
 exit /b %errorlevel%
 
 :fail

@@ -45,7 +45,9 @@ Nếu người dùng đổi tài khoản hoặc đổi mạng trong Freighter, D
 
 1. Giải nén project.
 2. Nhấp đúp `CHAY_WEB.bat`.
-3. Mở địa chỉ Terminal hiển thị, thường là <http://localhost:3000>.
+3. Mở đúng <http://localhost:3000>. File này chỉ khởi động khi cổng 3000 còn trống; nó sẽ **dừng** thay vì tự chuyển sang cổng 3001.
+
+Nếu file báo cổng 3000 đang được dùng, hãy đóng Terminal đang chạy website cũ rồi nhấp đúp lại `CHAY_WEB.bat`. Không mở `http://localhost:3001`: đó thường là một bản project cũ đang chạy.
 
 ### Cách 2: CMD/Terminal
 
@@ -55,19 +57,24 @@ Máy cần cài [Git](https://git-scm.com/) và [Node.js 22 trở lên](https://
 git clone https://github.com/haxuyenphan69-prog/PDU_Multisig_Treasury.git
 cd PDU_Multisig_Treasury
 npm install
-npm run dev
+npm run dev -- --port 3000 --strictPort
 ```
 
-Giữ Terminal đang chạy trong suốt thời gian dùng website. Nhấn `Ctrl + C` để dừng.
+Sau đó mở <http://localhost:3000>. Giữ Terminal đang chạy trong suốt thời gian dùng website. Nhấn `Ctrl + C` để dừng.
 
 Nếu tải project dạng ZIP, hãy mở CMD đúng tại thư mục có `package.json`, sau đó chạy:
 
 ```cmd
+cd /d "C:\Users\chuqu\OneDrive\Documents\hoccode\PDU-Multisig-Treasury"
 npm install
-npm run dev
+npm run dev -- --port 3000 --strictPort
 ```
 
-Không chạy `npm install` ngay tại `C:\Users\ten-ban`, vì npm sẽ không tìm thấy `package.json`.
+Chỉ chạy lệnh trong đúng thư mục có `package.json`. Với máy này là `C:\Users\chuqu\OneDrive\Documents\hoccode\PDU-Multisig-Treasury`; không chạy nhầm bản sao `C:\Users\chuqu\PDU_Multisig_Treasury`. Không chạy `npm install` ngay tại `C:\Users\ten-ban`, vì npm sẽ không tìm thấy `package.json`.
+
+### Dấu hiệu đang mở đúng bản mới
+
+Trang đúng có giao diện nền tối và nhãn **TESTNET LIVE**. Nếu thấy giao diện nền be với tiêu đề “Tiền chung. Quyết định chung.”, bạn đang mở bản cũ trên một cổng khác; quay lại <http://localhost:3000> sau khi chạy đúng lệnh ở trên.
 
 ## Kiểm tra project
 
