@@ -82,7 +82,10 @@ function address(value: string) {
 }
 
 function transactionFailureMessage(result: unknown): string {
-  const detail = JSON.stringify(result);
+  const detail = typeof result === "string" ? result : JSON.stringify(result);
+  if (detail.includes("resulting balance is not within the allowed range")) {
+    return "Ví Freighter không đủ XLM để nạp số tiền này. Friendbot Testnet cấp khoảng 10.000 XLM; hãy giữ tối thiểu 1 XLM trong ví và nạp số nhỏ hơn (ví dụ 9.000 XLM).";
+  }
   // Error 17 is InsufficientTreasuryBalance in this contract. Keeping this
   // mapping here prevents raw Soroban diagnostic events from reaching users.
   if (detail.includes("#17") || detail.includes("InsufficientTreasuryBalance")) {
@@ -99,7 +102,12 @@ async function submit(sourceAddress: string, method: string, params: xdr.ScVal[]
     .addOperation(new Contract(CONTRACT_ID).call(method, ...params))
     .setTimeout(60)
     .build();
-  const prepared = await server.prepareTransaction(transaction);
+  let prepared;
+  try {
+    prepared = await server.prepareTransaction(transaction);
+  } catch (error) {
+    throw new Error(transactionFailureMessage(error instanceof Error ? error.message : error));
+  }
   const signed = await signTransaction(prepared.toXDR(), {
     networkPassphrase: NETWORK_PASSPHRASE,
     address: sourceAddress,

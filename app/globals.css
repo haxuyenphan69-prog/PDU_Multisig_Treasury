@@ -260,6 +260,7 @@ main { max-width: 1480px; margin: auto; padding: 0 clamp(20px, 4vw, 64px); }
 .modal-card input:focus, .modal-card textarea:focus { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(97,239,189,.08); }
 .modal-card textarea { min-height: 105px; resize: vertical; }
 .modal-card label > small { align-self: flex-end; color: var(--muted); font-weight: 400; }
+.modal-card label > small.input-hint { align-self: stretch; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .modal-card label > small.over { color: var(--red); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 .form-grid .full { grid-column: 1/-1; }
@@ -351,4 +352,149 @@ main { max-width: 1480px; margin: auto; padding: 0 clamp(20px, 4vw, 64px); }
   .session-network { flex-direction: column; gap: 8px; }
   .protocol-card h2 { font-size: 24px; }
   .approval-panel > h2 { font-size: 28px; }
+}
+
+/* Refined interface: quieter hierarchy, readable type and fewer competing effects. */
+:root {
+  --bg: #0b1220;
+  --bg-soft: #101a2c;
+  --panel: #121e32;
+  --panel-2: #18263c;
+  --panel-light: #f5f7fb;
+  --text: #f7f9fc;
+  --text-dark: #162033;
+  --muted: #a3b1c6;
+  --muted-dark: #68758a;
+  --mint: #5eead4;
+  --mint-2: #14b8a6;
+  --violet: #8b9cfb;
+  --amber: #fbbf67;
+  --stroke: rgba(181, 198, 225, .16);
+  --stroke-dark: rgba(22, 32, 51, .13);
+  --display: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --shadow: 0 18px 46px rgba(1, 8, 20, .22);
+}
+
+body { background: var(--bg); font-size: 15px; }
+.treasury-app { background: linear-gradient(180deg, #0b1220 0, #0d1728 55%, #0b1220 100%); }
+.treasury-app::before { display: none; }
+.topbar { height: 72px; max-width: none; border-bottom-color: var(--stroke); background: rgba(11, 18, 32, .94); backdrop-filter: blur(16px); }
+.brand { gap: 10px; }
+.brand-seal { width: 38px; height: 38px; border-radius: 10px; background: #152b42; color: var(--mint); }
+.brand b { font-size: 15px; letter-spacing: .3px; }
+.brand em { color: var(--muted); font-size: 13px; }
+.nav { gap: 18px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.nav a { padding: 8px 0; border-radius: 0; font-size: 13px; font-weight: 600; }
+.nav a:hover { background: transparent; color: var(--mint); }
+.network-pill { padding: 8px 10px; border-radius: 999px; font: 700 10px var(--display); letter-spacing: .8px; }
+.wallet-button, .new-proposal { min-height: 40px; border-radius: 9px; font-size: 12px; }
+.wallet-button { background: var(--mint); }
+.wallet-button.connected { min-width: 190px; background: #17263b; }
+
+main { max-width: 1280px; }
+.hero { min-height: 450px; grid-template-columns: minmax(0, 1fr) 390px; gap: 56px; padding: 72px 0 46px; }
+.eyebrow, .section-label { font: 750 10px var(--display); letter-spacing: 1.1px; }
+.eyebrow { padding: 7px 10px; border-radius: 999px; }
+.hero h1 { max-width: 690px; margin: 21px 0; font: 720 clamp(42px, 5.2vw, 70px)/1.04 var(--display); letter-spacing: -3px; }
+.hero h1 em { font-weight: 650; }
+.hero-copy > p { max-width: 630px; font-size: 16px; line-height: 1.68; }
+.hero-actions { margin-top: 25px; }
+.hero-actions button { min-height: 45px; border-radius: 9px; font-size: 12px; }
+.protocol-card { padding: 25px; border-color: rgba(94,234,212,.24); border-radius: 16px; background: #112137; box-shadow: none; }
+.protocol-card::before { display: none; }
+.protocol-top { font-size: 10px; }
+.protocol-score { gap: 14px; margin: 25px 0 8px; }
+.protocol-score strong { font: 700 58px/.85 var(--display); letter-spacing: -3px; }
+.protocol-score i { width: 35px; }
+.protocol-card h2 { margin: 16px 0 23px; font: 650 24px/1.2 var(--display); letter-spacing: -.8px; }
+.protocol-route { padding: 14px 0; }
+.protocol-route b { font: 700 11px var(--display); }
+.protocol-route small, .contract-rule { font-size: 8px; }
+
+.metrics-grid { gap: 14px; margin-top: 16px; }
+.metrics-grid > article { min-height: 154px; padding: 20px; border-radius: 14px; background: #121e32; }
+.metrics-grid article > span, .balance-card > div > span { font: 700 10px var(--display); letter-spacing: .6px; }
+.metrics-grid article > strong { font: 700 40px var(--display); letter-spacing: -2px; }
+.metrics-grid article > small { font-size: 11px; }
+.balance-card { background: linear-gradient(135deg, #173653, #142a44) !important; }
+.balance-card > strong { font-size: 45px !important; }
+.balance-card footer span, .balance-card footer button { font-size: 10px; }
+
+.session-section { gap: 60px; margin: 82px 0; }
+.session-copy h2, .roster-heading h2, .section-head h2, .audit-copy h2 { margin: 12px 0; font: 700 clamp(32px, 3.5vw, 46px)/1.12 var(--display); letter-spacing: -2px; }
+.session-copy > p, .roster-heading > p, .audit-copy > p { font-size: 14px; line-height: 1.7; }
+.session-copy ol { margin-top: 25px; }
+.session-copy li { gap: 14px; margin-bottom: 9px; padding: 14px; border-radius: 10px; background: #111d30; }
+.session-copy li span { font-size: 12px; }
+.session-copy li small { font-size: 10px; }
+.session-console { min-height: 360px; padding: 24px; border-radius: 16px; background: #121e32; box-shadow: none; }
+.console-head { font-size: 10px; }
+.session-identity { padding: 33px 0 26px; }
+.session-identity strong { font-size: 28px; }
+.session-network { font-size: 10px; }
+.disconnect-button, .connect-large { padding: 13px; font-size: 11px; }
+
+.owner-roster { gap: 48px; margin: 76px 0; }
+.roster-heading h2 { font-size: 40px; }
+.roster-grid { gap: 12px; }
+.roster-grid article { padding: 18px; border-radius: 13px; background: #121e32; }
+.roster-grid h3 { margin: 19px 0 4px; font-size: 17px; }
+.roster-grid p { font-size: 10px; }
+.roster-grid code, .roster-grid article footer { font-size: 9px; }
+
+.signing-room { grid-template-columns: minmax(0, 1.45fr) minmax(340px, .8fr); margin-top: 76px; border-radius: 16px; background: #121e32; box-shadow: none; }
+.section-head { padding: 25px 27px 18px; }
+.section-head h2 { font-size: 33px; }
+.filters { min-height: 44px; padding: 0 27px 10px; }
+.filters button { font-size: 11px; }
+.proposal-row { min-height: 86px; grid-template-columns: 8px minmax(160px, 1fr) 88px 50px 75px 88px 14px; padding: 14px 20px; }
+.proposal-title b { font-size: 13px; }
+.proposal-title small, .proposal-value small, .approval-count small { font-size: 9px; }
+.approval-count b { font-size: 11px; }
+.proposal-value b { font-size: 15px; }
+.status-badge { font-size: 8px; }
+.approval-panel { padding: 26px; background: #f5f7fb; }
+.detail-kicker { font-size: 10px; }
+.approval-panel > h2 { margin: 16px 0 10px; font-size: 27px; }
+.detail-memo { min-height: 0; font-size: 12px; }
+.amount-callout { margin: 18px 0; padding: 18px; border-radius: 11px; }
+.amount-callout span { font-size: 9px; }
+.amount-callout strong { font-size: 25px; }
+.approval-panel dl > div { font-size: 11px; }
+.approval-progress > div:first-child { font-size: 9px; }
+.signer-list > div { padding: 9px 5px; }
+.signer-list > div > span b, .signer-list > div > strong { font-size: 10px; }
+.signer-list small { font-size: 8px; }
+.approval-action b, .action-state b { font-size: 11px; }
+.approval-action small, .action-state small { font-size: 9px; }
+
+.audit-section { gap: 62px; margin: 76px 0; }
+.audit-copy h2 { font-size: 40px; }
+.security-note { font-size: 11px; }
+.activity-feed { border-radius: 13px; background: #121e32; }
+.activity-feed b { font-size: 11px; }
+.activity-feed small, .activity-feed time { font-size: 9px; }
+.site-footer { font-size: 10px; }
+
+.modal-backdrop { background: rgba(5, 12, 23, .76); }
+.modal-card { width: min(560px, 100%); max-height: 86vh; padding: 26px; border-radius: 16px; background: #122038; box-shadow: 0 22px 70px rgba(0,0,0,.38); }
+.modal-header { margin-bottom: 20px; }
+.modal-header span { font-size: 9px; }
+.modal-header h2 { font-size: 28px; }
+.modal-card label { font-size: 10px; }
+.modal-rule { font-size: 10px; }
+.modal-submit { min-height: 46px; border-radius: 9px; font-size: 11px; }
+.confirm-summary h3 { font-size: 21px; }
+.confirm-summary strong { font-size: 32px; }
+.confirm-check small { font-size: 9px !important; }
+.toast { font-size: 11px; }
+
+@media (max-width: 800px) {
+  .nav { background: #111d30; }
+  .hero { padding: 52px 0 32px; }
+  .hero h1 { font-size: 46px; }
+  .protocol-card { margin-top: 32px; }
+  .metrics-grid > article { min-height: 138px; }
+  .signing-room { margin-top: 58px; }
 }
