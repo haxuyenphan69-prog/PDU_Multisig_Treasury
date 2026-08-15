@@ -1,57 +1,71 @@
 # PDU Multisig Treasury
 
-Ứng dụng quản lý kho quỹ XLM đa chữ ký trên Stellar/Soroban. Mỗi khoản chi phải nhận đủ chữ ký của **3/3 owner độc lập** trước khi contract cho phép thực thi.
+> Demo kho quỹ XLM cần **3/3 chữ ký thật** trên Stellar Testnet, xây dựng bằng Rust, Soroban và Freighter.
 
-> Đây là multisig workflow ở tầng smart contract, không phải native Stellar account multisig và không triển khai custom `__check_auth`.
+Đây là mini project học tập. Ba chủ quỹ tạo một khoản chi, từng người đăng nhập bằng ví Freighter riêng để ký, và smart contract chỉ chuyển XLM khi đủ ba chữ ký.
 
-## Luồng ba tài khoản thật
+**Không cần secret key trong project.** Mỗi transaction được Freighter mở cửa sổ để chính chủ ví kiểm tra và ký.
 
-Ứng dụng không có nút giả lập chuyển vai trò. Danh tính hiện tại luôn được lấy từ đúng địa chỉ ví Freighter đang kết nối:
+## Mục lục
 
-1. Một owner kết nối Freighter và tạo proposal. Contract lưu proposal ở trạng thái **0/3**, chưa tính người tạo là đã xác nhận.
-2. **Owner 01** kết nối ví, mở đúng khoản chi và bấm xác nhận để proposal thành 1/3.
-3. Đổi sang **Owner 02**, kết nối lại, mở cùng khoản chi và xác nhận thành 2/3.
-4. Đổi sang **Owner 03**, kết nối lại và xác nhận approval 3/3.
-5. Khi proposal đạt 3/3, một owner kết nối có thể gửi transaction `execute` cuối cùng để chuyển XLM.
+1. [Chức năng và luồng 3 chữ ký](#chức-năng-và-luồng-3-chữ-ký)
+2. [Chạy web trong 3 phút](#chạy-web-trong-3-phút)
+3. [Chuẩn bị ba ví Testnet](#chuẩn-bị-ba-ví-testnet)
+4. [Demo hoàn chỉnh](#demo-hoàn-chỉnh)
+5. [Contract Testnet](#contract-testnet)
+6. [Lỗi thường gặp](#lỗi-thường-gặp)
+7. [Kiểm tra source code](#kiểm-tra-source-code)
+8. [An toàn và tài liệu](#an-toàn-và-tài-liệu)
 
-## Contract Testnet đang hoạt động
+---
 
-- Contract ID: `CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB`
-- Native XLM SAC: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
-- Threshold: `3/3`
-- Owner 01: `GCRKBBW7GN4KUYSCPMWE5N3RL3FJAQQYG4BHKH4L2QY5R7XX2LB22ZCK`
-- Owner 02: `GAQ6FR2SYNHESJP4Q2QBDL527624IGCYTYIZBHVRU3GOIABKZZUNSXTU`
-- Owner 03: `GBK36GGL2SBMP3AS54WSTXKTFH2XHSVSP2FUF2IG45ORETNOGU7UHVZN`
+## Chức năng và luồng 3 chữ ký
 
-[Mở contract bằng Stellar Lab](https://lab.stellar.org/r/testnet/contract/CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB)
+| Chức năng | Ý nghĩa |
+|---|---|
+| Kết nối Freighter | Kiểm tra ví hiện tại có thuộc ba owner contract hay không. |
+| Nạp quỹ | Chuyển XLM **từ ví Freighter vào treasury contract**. |
+| Tạo proposal | Tạo khoản chi mới ở trạng thái `0/3`; người tạo chưa được tính là đã ký. |
+| Ký proposal | Mỗi owner ký transaction `approve` riêng. Một địa chỉ chỉ ký được một lần. |
+| Thực thi | Khi đủ `3/3`, một owner ký `execute` để chuyển XLM từ contract cho người nhận. |
+| Đồng bộ | Đọc proposal, chữ ký và số dư trực tiếp từ Soroban RPC trên Testnet. |
 
-Mỗi lần kết nối, frontend kiểm tra:
+Đây là multisig ở tầng **smart contract Soroban**, không phải native Stellar account multisig.
 
-- Freighter đang dùng **Stellar Testnet**.
-- Địa chỉ G... có nằm trong danh sách owner của contract hay không.
-- Ví hiện tại đã ký proposal này chưa.
-- Proposal đã đủ đúng 3/3 approval trước khi mở quyền thực thi hay chưa.
+```text
+Owner 01 tạo proposal ──> 0/3
+       │
+       ├─ Owner 01 mở proposal và ký ──> 1/3
+       ├─ Owner 02 đổi ví Freighter, mở cùng proposal, ký ──> 2/3
+       └─ Owner 03 đổi ví Freighter, mở cùng proposal, ký ──> 3/3
+                                                            │
+                                           Một owner thực thi ──> XLM được chuyển
+```
 
-Nếu người dùng đổi tài khoản hoặc đổi mạng trong Freighter, DApp tự huỷ phiên hiện tại và bắt buộc kết nối lại. Frontend không lưu secret key hay seed phrase.
+Website không có nút giả lập đổi vai trò hoặc tự tăng chữ ký: từng bước là một transaction Testnet thật.
 
-## Hai chế độ giao diện
+---
 
-- **READ-ONLY PREVIEW:** chưa có `NEXT_PUBLIC_TREASURY_CONTRACT_ID`. Website chỉ hiển thị dữ liệu minh hoạ; tạo, ký, nạp quỹ và thực thi đều bị khoá. Không có chữ ký giả hoặc dữ liệu giả được ghi vào trình duyệt.
-- **TESTNET LIVE:** đã cấu hình Contract ID hợp lệ. Proposal, approval, balance và owner được đọc từ Soroban RPC; transaction được ký bằng Freighter.
+## Chạy web trong 3 phút
 
-## Chạy nhanh trên Windows
+### Cách 1 — Nhanh nhất trên Windows
 
-### Cách 1: file chạy có sẵn
+1. Tải project về máy hoặc giải nén file ZIP.
+2. Mở đúng thư mục có hai file `package.json` và `CHAY_WEB.bat`.
+3. Nhấp đúp **`CHAY_WEB.bat`**.
+4. Đợi Terminal hiện địa chỉ và mở:
 
-1. Giải nén project.
-2. Nhấp đúp `CHAY_WEB.bat`.
-3. Mở đúng <http://localhost:3000>. File này chỉ khởi động khi cổng 3000 còn trống; nó sẽ **dừng** thay vì tự chuyển sang cổng 3001.
+   <http://localhost:3000>
 
-Nếu file báo cổng 3000 đang được dùng, hãy đóng Terminal đang chạy website cũ rồi nhấp đúp lại `CHAY_WEB.bat`. Không mở `http://localhost:3001`: đó thường là một bản project cũ đang chạy.
+5. Giữ Terminal mở khi dùng web. Muốn dừng web, quay lại Terminal và nhấn `Ctrl + C`.
 
-### Cách 2: CMD/Terminal
+File `CHAY_WEB.bat` chỉ dùng cổng `3000`. Nếu cổng này đang bận, file sẽ dừng và báo rõ; nó không tự chuyển sang cổng 3001 để tránh mở nhầm giao diện cũ.
 
-Máy cần cài [Git](https://git-scm.com/) và [Node.js 22 trở lên](https://nodejs.org/). Chạy từng lệnh:
+### Cách 2 — Dùng CMD/Terminal
+
+#### Lần đầu tải từ GitHub
+
+Trước hết cài [Node.js LTS](https://nodejs.org/) phiên bản 22 hoặc mới hơn và [Git](https://git-scm.com/). Mở CMD rồi chạy từng lệnh:
 
 ```cmd
 git clone https://github.com/haxuyenphan69-prog/PDU_Multisig_Treasury.git
@@ -60,9 +74,11 @@ npm install
 npm run dev -- --port 3000 --strictPort
 ```
 
-Sau đó mở <http://localhost:3000>. Giữ Terminal đang chạy trong suốt thời gian dùng website. Nhấn `Ctrl + C` để dừng.
+Khi Terminal hiện `Local: http://localhost:3000/`, mở <http://localhost:3000>.
 
-Nếu tải project dạng ZIP, hãy mở CMD đúng tại thư mục có `package.json`, sau đó chạy:
+#### Nếu tải file ZIP
+
+Mở CMD và đi vào **đúng thư mục đã giải nén**. Ví dụ trên máy tác giả:
 
 ```cmd
 cd /d "C:\Users\chuqu\OneDrive\Documents\hoccode\PDU-Multisig-Treasury"
@@ -70,15 +86,153 @@ npm install
 npm run dev -- --port 3000 --strictPort
 ```
 
-Chỉ chạy lệnh trong đúng thư mục có `package.json`. Với máy này là `C:\Users\chuqu\OneDrive\Documents\hoccode\PDU-Multisig-Treasury`; không chạy nhầm bản sao `C:\Users\chuqu\PDU_Multisig_Treasury`. Không chạy `npm install` ngay tại `C:\Users\ten-ban`, vì npm sẽ không tìm thấy `package.json`.
+Không chạy `npm install` tại `C:\Users\ten-ban`, vì npm sẽ báo không tìm thấy `package.json`.
 
-### Dấu hiệu đang mở đúng bản mới
+### Dấu hiệu mở đúng web
 
-Trang đúng có giao diện nền tối và nhãn **TESTNET LIVE**. Nếu thấy giao diện nền be với tiêu đề “Tiền chung. Quyết định chung.”, bạn đang mở bản cũ trên một cổng khác; quay lại <http://localhost:3000> sau khi chạy đúng lệnh ở trên.
+Giao diện hiện tại có nền xanh đậm, logo **PDU Treasury** và nhãn **TESTNET LIVE**. Nếu thấy trang nền be có tiêu đề “Tiền chung. Quyết định chung.”, bạn đang mở một bản cũ ở thư mục hoặc cổng khác.
 
-## Kiểm tra project
+---
 
-Nhấp đúp `KIEM_TRA_PROJECT.bat`, hoặc chạy:
+## Chuẩn bị ba ví Testnet
+
+### 1. Cài và cấu hình Freighter
+
+1. Cài extension [Freighter Wallet](https://freighter.app/).
+2. Tạo ví mới hoặc import ví Testnet sẵn có.
+3. Trong Freighter, chọn network **Testnet**.
+4. Chuẩn bị ba ví owner được liệt kê ở phần [Contract Testnet](#contract-testnet).
+
+> Không gửi seed phrase, recovery phrase hoặc secret key cho bất kỳ ai. Project này không yêu cầu và không lưu những dữ liệu đó.
+
+### 2. Cấp XLM Testnet cho ví
+
+XLM Testnet là token thử nghiệm, không có giá trị thật. Stellar Friendbot cấp khoảng **10.000 XLM Testnet** cho một tài khoản mới hoặc tài khoản có số dư thấp.
+
+Có hai cách:
+
+- Trong Freighter: khi tài khoản chưa được cấp tiền trên Testnet, ví sẽ gợi ý nạp bằng Friendbot.
+- Trong [Stellar Lab – Account](https://lab.stellar.org/account): chọn **Testnet**, nhập public address `G...`, sau đó chọn **Fund account with Friendbot / Get lumens**.
+
+Stellar yêu cầu tài khoản giữ lại tối thiểu khoảng **1 XLM**. Vì vậy một ví Friendbot mới chỉ nên nạp vào treasury tối đa khoảng **9.999 XLM**.
+
+### 3. Vì sao không nạp được 100.000 XLM?
+
+Nút **Nạp quỹ** chuyển tiền từ ví Freighter vào contract; nó không tạo thêm XLM cho ví. Nếu ví chỉ có khoảng 10.000 XLM Testnet mà nhập `100000`, Stellar sẽ từ chối transaction.
+
+Để demo dễ nhất, dùng khoản chi `100` hoặc `1000` XLM, rồi nạp trước `1000` hoặc `9000` XLM vào treasury.
+
+---
+
+## Demo hoàn chỉnh
+
+Làm theo đúng thứ tự dưới đây. Đây là hướng dẫn cho người chưa dùng Stellar/Soroban.
+
+### Bước 0 — Mở DApp và kiểm tra mạng
+
+1. Chạy website theo phần [Chạy web trong 3 phút](#chạy-web-trong-3-phút).
+2. Mở <http://localhost:3000>.
+3. Kiểm tra góc trên có nhãn **TESTNET LIVE**.
+4. Mở Freighter và bảo đảm đang chọn **Testnet**.
+
+### Bước 1 — Nạp XLM vào treasury
+
+1. Trong Freighter, chọn **Owner 01**.
+2. Nhấn **Kết nối Freighter**. DApp chỉ chấp nhận ví thuộc danh sách owner.
+3. Ở thẻ **Tài sản treasury**, nhấn **Nạp quỹ**.
+4. Nhập `1000` XLM (hoặc nhỏ hơn số dư ví).
+5. Nhấn **Mở Freighter để xác nhận**, kiểm tra transaction và ký.
+6. Nhấn nút làm mới ở thẻ số dư treasury.
+
+Sau bước này, số dư treasury phải lớn hơn hoặc bằng số tiền bạn định chi.
+
+### Bước 2 — Tạo khoản chi mới
+
+1. Vẫn giữ **Owner 01** đang kết nối.
+2. Nhấn **Tạo khoản chi**.
+3. Điền ví dụ:
+
+   - Tên khoản chi: `Demo multisig`
+   - Người nhận: một public address Testnet `G...` hợp lệ (có thể dùng public address Owner 02)
+   - Số lượng: `100`
+   - Mục đích: `Kiểm tra luồng ký 3 trên 3 trên Stellar Testnet`
+
+4. Nhấn **Tạo proposal 0/3** và ký trong Freighter.
+5. Proposal xuất hiện ở trạng thái `0/3`.
+
+> Proposal `#00` trị giá 100.000 XLM đã tạo trước đó sẽ không thực thi được nếu treasury chưa có đủ 100.000 XLM. Hãy tạo proposal mới nhỏ hơn để demo.
+
+### Bước 3 — Owner 01 ký chữ ký thứ nhất
+
+1. Mở proposal vừa tạo.
+2. Nhấn **Ký bằng Owner 01**.
+3. Đọc lại người nhận, số tiền và mục đích.
+4. Tích xác nhận, mở Freighter và ký transaction `approve`.
+
+Proposal thành `1/3`.
+
+### Bước 4 — Owner 02 ký chữ ký thứ hai
+
+1. Trong Freighter, đổi sang **Owner 02**.
+2. Trên DApp, nhấn **Ngắt phiên để đổi tài khoản**, sau đó **Kết nối Freighter** lại.
+3. Mở đúng proposal đang ở `1/3`.
+4. Nhấn **Ký bằng Owner 02** và ký trong Freighter.
+
+Proposal thành `2/3`.
+
+### Bước 5 — Owner 03 ký chữ ký cuối
+
+1. Đổi Freighter sang **Owner 03**.
+2. Ngắt phiên, kết nối lại DApp.
+3. Mở đúng proposal và nhấn **Ký bằng Owner 03**.
+4. Ký transaction trong Freighter.
+
+Proposal đạt `3/3` và hiển thị “Đủ 3 chữ ký”.
+
+### Bước 6 — Thực thi khoản chi
+
+1. Giữ Owner 03, hoặc đổi sang bất kỳ owner nào.
+2. Mở proposal đã `3/3`.
+3. Nhấn **Thực thi khoản chi**.
+4. Kiểm tra kỹ người nhận và số tiền, tích xác nhận.
+5. Nhấn **Ký và thực thi** trong Freighter.
+
+Proposal chuyển sang “Đã giải ngân” và số dư treasury giảm tương ứng.
+
+---
+
+## Contract Testnet
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Network | Stellar Testnet |
+| Contract ID | `CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB` |
+| Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
+| Ngưỡng phê duyệt | `3/3` |
+| Owner 01 | `GCRKBBW7GN4KUYSCPMWE5N3RL3FJAQQYG4BHKH4L2QY5R7XX2LB22ZCK` |
+| Owner 02 | `GAQ6FR2SYNHESJP4Q2QBDL527624IGCYTYIZBHVRU3GOIABKZZUNSXTU` |
+| Owner 03 | `GBK36GGL2SBMP3AS54WSTXKTFH2XHSVSP2FUF2IG45ORETNOGU7UHVZN` |
+
+- [Mở contract trên Stellar Lab](https://lab.stellar.org/r/testnet/contract/CAM5TLNZA3ETITVK7FWIVCE7XTLYDXLHCF75AVWEOODZCFQN5ZB4LMQB)
+- Contract ban đầu có số dư `0 XLM`; số dư chỉ tăng sau khi một ví thực hiện `deposit` thành công.
+
+## Lỗi thường gặp
+
+| Hiện tượng | Nguyên nhân và cách xử lý |
+|---|---|
+| `Port 3000 is in use` | Có web khác đang chạy. Đóng Terminal cũ hoặc dùng chính <http://localhost:3000> nếu đó đã là bản mới. Không mở 3001 để tránh bản cũ. |
+| `ENOENT package.json` | Bạn đang ở sai thư mục. Dùng `cd` để vào thư mục chứa `package.json`. |
+| Không thấy Freighter | Cài/bật extension Freighter, sau đó tải lại trang. |
+| Sai mạng | Trong Freighter chuyển sang **Testnet**, ngắt phiên và kết nối lại. |
+| “Ví này không thuộc ba owner” | Chỉ ba public address trong bảng trên mới tạo, ký hoặc thực thi proposal. |
+| Không nạp được 100.000 XLM | Ví Testnet thiếu tiền. Friendbot cấp khoảng 10.000 XLM; thử nạp `9000` XLM hoặc tạo proposal nhỏ hơn. |
+| “Kho quỹ không đủ XLM” | Đã đủ chữ ký nhưng contract không có đủ tiền. Nạp thêm vào treasury rồi đồng bộ lại. |
+| Owner đã ký nhưng số đếm chưa đổi | Nhấn đồng bộ, đợi Testnet ghi ledger vài giây hoặc tải lại trang. |
+| Một owner ký hai lần | Contract từ chối theo thiết kế; hãy đổi sang owner chưa ký. |
+
+## Kiểm tra source code
+
+### Lệnh kiểm tra
 
 ```cmd
 cargo test -p pdu-multisig-treasury
@@ -87,100 +241,41 @@ npm run lint
 npm test
 ```
 
-WASM đã build nằm tại `pdu_multisig_treasury.wasm`. Source contract nằm tại `contracts/pdu_multisig_treasury/src/lib.rs`.
-
-## Deploy contract lên Testnet
-
-Cài Rust, target `wasm32v1-none`, Stellar CLI và Freighter. Chuẩn bị ba tài khoản Testnet khác nhau:
-
-```cmd
-stellar keys generate --global owner01 --network testnet --fund
-stellar keys generate --global owner02 --network testnet --fund
-stellar keys generate --global owner03 --network testnet --fund
-
-stellar keys address owner01
-stellar keys address owner02
-stellar keys address owner03
-stellar contract id asset --asset native --network testnet
-```
-
-Deploy contract với đúng ba public address và threshold 3:
-
-```cmd
-stellar contract deploy --wasm pdu_multisig_treasury.wasm --source owner01 --network testnet --alias pdu_treasury -- --owners '["G_OWNER_01","G_OWNER_02","G_OWNER_03"]' --threshold 3 --token C_NATIVE_XLM_SAC
-```
-
-Tạo `.env.local` dựa trên `.env.example`:
-
-```env
-NEXT_PUBLIC_TREASURY_CONTRACT_ID=C...CONTRACT_ID_DA_DEPLOY
-NEXT_PUBLIC_XLM_SAC_ID=C...NATIVE_XLM_SAC
-NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-NEXT_PUBLIC_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-```
-
-Khởi động lại frontend sau khi đổi biến môi trường:
-
-```cmd
-npm run dev
-```
-
-Không commit secret key, seed phrase hoặc file `.env.local`.
-
-## Kiểm thử thủ công bằng ba tài khoản Freighter
-
-1. Import hoặc tạo ba tài khoản Testnet riêng trong Freighter; public address phải trùng cấu hình contract.
-2. Chọn Owner 01 trong Freighter, đặt mạng Testnet, kết nối DApp và tạo proposal.
-3. Kiểm tra proposal mới hiển thị 0/3. Mở proposal và bấm xác nhận bằng Owner 01 để thành 1/3.
-4. Chuyển Freighter sang Owner 02, kết nối lại, mở cùng proposal và xác nhận thành 2/3. Ở bước này vẫn chưa thể thực thi.
-5. Chuyển Freighter sang Owner 03, kết nối lại, mở proposal và xác nhận. Kiểm tra trạng thái 3/3.
-6. Gửi transaction thực thi. Kiểm tra balance giảm đúng amount và proposal chuyển sang `Executed`.
-7. Thử ví không thuộc owner; DApp phải từ chối quyền ký.
-8. Thử ký lặp bằng cùng owner; contract phải từ chối.
-
-## Chức năng contract
-
-| Hàm | Mục đích |
-|---|---|
-| `__constructor` | Lưu ba owner, threshold 3 và token |
-| `deposit` | Chuyển XLM SAC vào treasury |
-| `create_proposal` | Tạo proposal ở trạng thái 0/3, không tự approve |
-| `approve` | Owner ký đúng một lần bằng `require_auth()` |
-| `cancel_proposal` | Proposer huỷ trước khi đủ threshold |
-| `execute` | Chuyển XLM khi đủ 3/3 approval |
-| getters | Đọc config, proposal, approval, balance và trạng thái |
-
-Contract dùng `require_auth()`, `#[contracterror]`, Instance/Persistent storage, typed event và checks-effects-interactions. Khi token transfer thất bại, Soroban rollback trạng thái `Executed`.
-
-## Đơn vị và giới hạn
-
-- `1 XLM = 10,000,000` stroops.
-- Amount on-chain là `i128`; frontend dùng chuỗi và `BigInt` khi tạo transaction.
-- Contract hỗ trợ tối đa 10 owner, nhưng giao diện này yêu cầu đúng 3 owner và threshold 3.
-- Memo tối đa 160 UTF-8 bytes, bao gồm tiêu đề ghép vào memo.
-- Proposal lifetime tối đa 120.960 ledger.
-- Business expiry độc lập với storage TTL.
-
-## Cấu trúc chính
+### Cấu trúc chính
 
 ```text
-contracts/pdu_multisig_treasury/       Rust contract + tests
+contracts/pdu_multisig_treasury/       Smart contract Rust + unit tests
 packages/pdu-multisig-treasury-client/ TypeScript helpers
-app/                                   React frontend
-app/stellar-treasury.ts                Soroban RPC + Freighter adapter
-docs/SOROBAN_STUDIO.md                 Hướng dẫn Soroban Studio
-pdu_multisig_treasury.wasm             WASM đã build
-CHAY_WEB.bat                            Chạy website trên Windows
+app/treasury-app.tsx                   Giao diện và luồng Freighter
+app/stellar-treasury.ts                Soroban RPC, dựng/ký/gửi transaction
+app/globals.css                        Giao diện website
+docs/SOROBAN_STUDIO.md                 Hướng dẫn dùng Soroban Studio
+pdu_multisig_treasury.wasm             WASM contract đã build
+CHAY_WEB.bat                           File chạy nhanh Windows
 ```
 
-## Tài liệu tham khảo
+### Các hàm contract
 
-- [Stellar Smart Contracts: Hello World](https://developers.stellar.org/docs/build/smart-contracts/getting-started/hello-world)
-- [Stellar Asset Contract](https://developers.stellar.org/docs/build/guides/tokens/stellar-asset-contract)
-- [Soroban authorization](https://developers.stellar.org/docs/learn/fundamentals/contract-development/authorization)
+| Hàm | Mô tả |
+|---|---|
+| `deposit` | Chuyển XLM từ ví đã ký vào contract treasury. |
+| `create_proposal` | Tạo proposal ở `0/3`. |
+| `approve` | Owner ký đúng một lần bằng `require_auth()`. |
+| `execute` | Chỉ chuyển tiền khi đã đủ 3/3 và treasury có đủ XLM. |
+| `cancel_proposal` | Người tạo huỷ proposal khi chưa đạt threshold. |
+| `get_config`, `get_proposal`, `treasury_balance` | Đọc trạng thái on-chain. |
+
+## An toàn và tài liệu
+
+- Chỉ dùng **Stellar Testnet**; XLM ở đây không phải tiền thật.
+- Không commit file `.env.local`, secret key, seed phrase hoặc recovery phrase.
+- Project chưa qua audit bảo mật; không dùng cho Mainnet hay quỹ thật.
+- Luôn kiểm tra địa chỉ, số tiền và mục đích trong Freighter trước khi ký.
+
+Tài liệu tham khảo:
+
+- [Stellar Smart Contracts – Hello World](https://developers.stellar.org/docs/build/smart-contracts/getting-started/hello-world)
+- [Soroban authorization với `require_auth()`](https://developers.stellar.org/docs/learn/fundamentals/contract-development/authorization)
+- [Stellar Lab – Fund account with Friendbot](https://developers.stellar.org/docs/tools/lab/account)
 - [Soroban Studio](https://soroban.studio/)
 - [stellar-notes-dapp](https://github.com/minhbear/stellar-notes-dapp) — tham khảo cấu trúc học tập
-
-## Lưu ý
-
-Project dùng cho học tập trên Testnet, chưa qua kiểm toán bảo mật và không dùng với tiền thật. Event RPC có thời gian lưu hữu hạn; lịch sử dài hạn cần indexer off-chain.
