@@ -35,7 +35,9 @@ echo.
 echo PDU Treasury dang khoi dong tai http://localhost:3000
 echo Trinh duyet se mo sau vai giay. Khong dong cua so nay khi dang dung web.
 start "" cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:3000"
-call npm run dev -- --port 3000 --strictPort
+REM package.json is locked to port 3000 with --strictPort.
+REM Therefore even a manual npm run dev can never fall back to port 3001.
+call npm run dev
 exit /b %errorlevel%
 
 :fail

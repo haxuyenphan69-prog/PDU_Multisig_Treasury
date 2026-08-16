@@ -59,7 +59,7 @@ Website không có nút giả lập đổi vai trò hoặc tự tăng chữ ký:
 
 5. Giữ Terminal mở khi dùng web. Muốn dừng web, quay lại Terminal và nhấn `Ctrl + C`.
 
-File `CHAY_WEB.bat` chỉ dùng cổng `3000`. Nếu cổng này đang bận, file sẽ dừng và báo rõ; nó không tự chuyển sang cổng 3001 để tránh mở nhầm giao diện cũ.
+File `CHAY_WEB.bat` và lệnh `npm run dev` đều bị khóa ở cổng `3000`. Nếu cổng này đang bận, chúng sẽ dừng và báo rõ; không có trường hợp tự chuyển sang cổng `3001`.
 
 ### Cách 2 — Dùng CMD/Terminal
 
@@ -71,7 +71,7 @@ Trước hết cài [Node.js LTS](https://nodejs.org/) phiên bản 22 hoặc m�
 git clone https://github.com/haxuyenphan69-prog/PDU_Multisig_Treasury.git
 cd PDU_Multisig_Treasury
 npm install
-npm run dev -- --port 3000 --strictPort
+npm run dev
 ```
 
 Khi Terminal hiện `Local: http://localhost:3000/`, mở <http://localhost:3000>.
@@ -83,7 +83,7 @@ Mở CMD và đi vào **đúng thư mục đã giải nén**. Ví dụ trên má
 ```cmd
 cd /d "C:\Users\chuqu\OneDrive\Documents\hoccode\PDU-Multisig-Treasury"
 npm install
-npm run dev -- --port 3000 --strictPort
+npm run dev
 ```
 
 Không chạy `npm install` tại `C:\Users\ten-ban`, vì npm sẽ báo không tìm thấy `package.json`.
